@@ -1,13 +1,14 @@
 package raftRpc
 
 import (
+	"fmt"
 	"net/rpc"
 	"os"
 )
 
 var (
 	DEBUG         = true
-	serverAddress = "localhost:8081"
+	serverAddress = ":8081"
 )
 
 type RaftClient struct {
@@ -16,10 +17,12 @@ type RaftClient struct {
 }
 
 func DialHTTP(network, address string) (*RaftClient, error) {
+	fmt.Println("Dial HTTP called")
 	c, err := rpc.DialHTTP(network, address)
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println("Successfully dialed: ", address)
 
 	var d *rpc.Client
 	if DEBUG {
@@ -40,6 +43,7 @@ func (rc *RaftClient) Call(serviceMethod string, args interface{}, reply interfa
 			os.Exit(-1)
 		}
 		// TODO React to debug server.
+		fmt.Println("[DEBUG] Reply from debug server: ", reply)
 	}
 	return rc.client.Call(serviceMethod, args, reply)
 }
