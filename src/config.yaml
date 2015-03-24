@@ -1,0 +1,17 @@
+servers:
+    - name: server1
+      address: localhost
+      port: 8080
+
+    - name: server2
+      address: localhost
+      port: 8081
+
+    - name: debugServer
+      address: localhost
+      port: 8082
+
+rules:
+    - source: server1
+      dest: server2
+      action: drop
