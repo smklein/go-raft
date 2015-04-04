@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
+	"os"
 )
 
 type Server struct {
@@ -18,7 +19,7 @@ type Config struct {
 
 func LoadConfig(config *Config) bool {
 	// Load config
-	file, e := ioutil.ReadFile("src/config.yaml")
+	file, e := ioutil.ReadFile(os.Getenv("GOPATH") + "src/config.yaml")
 	if e != nil {
 		fmt.Println("Error: ", e)
 		return false
