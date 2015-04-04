@@ -63,7 +63,7 @@ func (rc *RaftClient) Call(serviceMethod string, args RaftClientArgs, reply *Raf
 	if DEBUG {
 		sc := debugRpcServer.ServerConnection{args.inputServer, args.outputServer}
 		var behavior debugRpcServer.Behavior
-		err := rc.debugClient.Call("GetRule", sc, &behavior)
+		err := rc.debugClient.Call("Check.GetRule", sc, &behavior)
 		if err != nil {
 			// If DEBUG is on, we NEED the ability to contact the debug server.
 			os.Exit(-1)

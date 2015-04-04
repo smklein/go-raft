@@ -13,12 +13,11 @@ import (
 func main() {
 	fmt.Println("[MAIN] Debug Server Started...")
 
-	var cf config.Config
-	if !config.LoadConfig(&cf) {
+	if !config.LoadConfig(&debugRpcServer.Cf) {
 		fmt.Println("[MAIN] Couldn't load config...")
 		return
 	} else {
-		fmt.Println("[MAIN] Config: ", cf)
+		fmt.Println("[MAIN] Config: ", debugRpcServer.Cf)
 	}
 
 	// Start server
@@ -27,7 +26,7 @@ func main() {
 	rpc.HandleHTTP()
 	fmt.Println("About to listen...")
 	var port int
-	for _, s := range cf.Servers {
+	for _, s := range debugRpcServer.Cf.Servers {
 		if s.Name == "debugServer" {
 			port = s.Port
 		}

@@ -21,8 +21,8 @@ type Behavior struct {
 	Delay bool
 }
 
-var rules map[ServerConnection]*Behavior
-var cf config.Config
+var rules map[ServerConnection]*Behavior = make(map[ServerConnection]*Behavior)
+var Cf config.Config
 
 func (t *Check) CheckRPC(in string, out *string) error {
 	s := []string{in, "Delay"}
@@ -39,7 +39,8 @@ type RuleCommandRpcInput struct {
 }
 
 func serverExists(name string) bool {
-	for _, s := range cf.Servers {
+	fmt.Println("config: ", Cf)
+	for _, s := range Cf.Servers {
 		if s.Name == name {
 			return true
 		}
