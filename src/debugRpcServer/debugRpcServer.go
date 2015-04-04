@@ -1,13 +1,8 @@
-package main
+package debugRpcServer
 
 import (
 	"errors"
 	"fmt"
-	"gopkg.in/yaml.v2"
-	"io/ioutil"
-	"net"
-	"net/http"
-	"net/rpc"
 	"strings"
 )
 
@@ -16,13 +11,13 @@ type Check int
 type ServerConnection struct {
 	// Serves as key for rule map.
 	// Identifies connection between input server and output server.
-	input  string
-	output string
+	Input  string
+	Output string
 }
 
 type Behavior struct {
-	drop  bool
-	delay bool
+	Drop  bool
+	Delay bool
 }
 
 type Config struct {
@@ -65,10 +60,10 @@ func addRuleToServer(in RuleCommandRpcInput, inServer, outServer string) {
 	}
 
 	if in.behavior == "delay" {
-		behavior.delay = in.on
+		behavior.Delay = in.on
 	}
 	if in.behavior == "drop" {
-		behavior.drop = in.on
+		behavior.Drop = in.on
 	}
 
 	rules[sc] = behavior
@@ -89,10 +84,10 @@ func (t *Check) AddRule(in RuleCommandRpcInput, out *bool) error {
 }
 
 func (t *Check) GetRule(in ServerConnection, out *Behavior) error {
-	if !serverExists(in.input) {
+	if !serverExists(in.Input) {
 		return errors.New("Input server not known by debug server")
 	}
-	if !serverExists(in.output) {
+	if !serverExists(in.Output) {
 		return errors.New("Output server not known by debug server")
 	}
 
@@ -100,6 +95,15 @@ func (t *Check) GetRule(in ServerConnection, out *Behavior) error {
 
 	return nil
 }
+
+/* TODO Make debugRpcServer runner
+Additional imports needed:
+	"gopkg.in/yaml.v2"
+	"io/ioutil"
+	"net"
+	"net/http"
+	"net/rpc"
+
 
 func main() {
 	// Load config
@@ -125,4 +129,4 @@ func main() {
 		fmt.Println("No errors listening. About to serve...")
 		http.Serve(l, nil)
 	}
-}
+}*/

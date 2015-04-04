@@ -1,19 +1,32 @@
 package raftRpc
 
 import (
+	"debugRpcServer"
+	"errors"
 	"fmt"
 	"net/rpc"
 	"os"
+	"time"
 )
 
 var (
 	DEBUG         = true
-	serverAddress = ":8081"
+	serverAddress = ":8081" // TODO Read this from config.yaml
 )
 
 type RaftClient struct {
 	client      *rpc.Client
 	debugClient *rpc.Client
+}
+
+type RaftClientArgs struct {
+	// TODO Fill this!
+	inputServer  string
+	outputServer string
+}
+
+type RaftClientReply struct {
+	// TODO Fill this!
 }
 
 func DialHTTP(network, address string) (*RaftClient, error) {
@@ -35,15 +48,22 @@ func DialHTTP(network, address string) (*RaftClient, error) {
 	return &RaftClient{client: c, debugClient: d}, err
 }
 
-func (rc *RaftClient) Call(serviceMethod string, args interface{}, reply interface{}) error {
+func (rc *RaftClient) Call(serviceMethod string, args RaftClientArgs, reply *RaftClientReply) error {
 	if DEBUG {
-		err := rc.debugClient.Call(serviceMethod, args, reply)
+		sc := debugRpcServer.ServerConnection{args.inputServer, args.outputServer}
+		var behavior debugRpcServer.Behavior
+		err := rc.debugClient.Call("GetRule", sc, &behavior)
 		if err != nil {
 			// If DEBUG is on, we NEED the ability to contact the debug server.
 			os.Exit(-1)
 		}
-		// TODO React to debug server.
-		fmt.Println("[DEBUG] Reply from debug server: ", reply)
+		if behavior.Drop {
+			fmt.Println("Applying DROP rule")
+			return errors.New("Message dropped by RPC layer")
+		} else if behavior.Delay {
+			fmt.Println("Applying DELAY rule")
+			time.Sleep(2000 * time.Millisecond) // TODO Add ability to wait for different times.
+		}
 	}
 	return rc.client.Call(serviceMethod, args, reply)
 }
