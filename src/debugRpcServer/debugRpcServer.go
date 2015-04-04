@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
@@ -12,18 +13,24 @@ import (
 
 type Check int
 
-type Server struct {
-	Name string
-	Address string
-	Port int
+type ServerConnection struct {
+	// Serves as key for rule map.
+	// Identifies connection between input server and output server.
+	input  string
+	output string
 }
 
-type Rule map[string]string
+type Behavior struct {
+	drop  bool
+	delay bool
+}
 
 type Config struct {
-	Servers []Server
-	Rules []Rule
+	Servers []string
 }
+
+var rules map[ServerConnection]*Behavior
+var config Config
 
 func (t *Check) CheckRPC(in string, out *string) error {
 	s := []string{in, "Delay"}
@@ -32,7 +39,67 @@ func (t *Check) CheckRPC(in string, out *string) error {
 	return nil
 }
 
-var config Config
+type RuleCommandRpcInput struct {
+	input    string
+	output   string
+	behavior string
+	on       bool
+}
+
+func serverExists(name string) bool {
+	for _, server := range config.Servers {
+		if server == name {
+			return true
+		}
+	}
+	return false
+}
+
+func addRuleToServer(in RuleCommandRpcInput, inServer, outServer string) {
+	sc := ServerConnection{inServer, outServer}
+	var behavior *Behavior
+	if rules[sc] != nil {
+		behavior = rules[sc]
+	} else {
+		behavior = &Behavior{} // Behaviors default to false
+	}
+
+	if in.behavior == "delay" {
+		behavior.delay = in.on
+	}
+	if in.behavior == "drop" {
+		behavior.drop = in.on
+	}
+
+	rules[sc] = behavior
+}
+
+func (t *Check) AddRule(in RuleCommandRpcInput, out *bool) error {
+	if !serverExists(in.input) {
+		return errors.New("Input server not known by debug server")
+	}
+	if !serverExists(in.output) {
+		return errors.New("Output server not known by debug server")
+	}
+
+	addRuleToServer(in, in.input, in.output)
+
+	*out = true
+	return nil
+}
+
+func (t *Check) GetRule(in ServerConnection, out *Behavior) error {
+	if !serverExists(in.input) {
+		return errors.New("Input server not known by debug server")
+	}
+	if !serverExists(in.output) {
+		return errors.New("Output server not known by debug server")
+	}
+
+	out = rules[in]
+
+	return nil
+}
 
 func main() {
 	// Load config
