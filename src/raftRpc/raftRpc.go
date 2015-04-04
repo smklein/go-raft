@@ -1,11 +1,13 @@
 package raftRpc
 
 import (
+	"config"
 	"debugRpcServer"
 	"errors"
 	"fmt"
 	"net/rpc"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -39,6 +41,15 @@ func DialHTTP(network, address string) (*RaftClient, error) {
 
 	var d *rpc.Client
 	if DEBUG {
+		var cf config.Config
+		config.LoadConfig(&cf)
+		for _, s := range cf.Servers {
+			if s.Name == "debugServer" {
+				serverAddress = s.Address + ":" + strconv.Itoa(s.Port)
+			}
+		}
+		fmt.Println("Config: ", cf)
+
 		d, err = rpc.DialHTTP(network, serverAddress)
 		if err != nil {
 			// If DEBUG is on, we NEED the ability to contact the debug server.

@@ -1,4 +1,4 @@
-package server
+package config
 
 import (
 	"fmt"
@@ -7,9 +7,9 @@ import (
 )
 
 type Server struct {
-	Name string
+	Name    string
 	Address string
-	Port int
+	Port    int
 }
 
 type Config struct {
@@ -18,7 +18,7 @@ type Config struct {
 
 func LoadConfig(config *Config) bool {
 	// Load config
-	file, e := ioutil.ReadFile("../src/config.yaml")
+	file, e := ioutil.ReadFile("src/config.yaml")
 	if e != nil {
 		fmt.Println("Error: ", e)
 		return false

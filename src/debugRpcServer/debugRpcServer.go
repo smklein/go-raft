@@ -1,6 +1,7 @@
 package debugRpcServer
 
 import (
+	"config"
 	"errors"
 	"fmt"
 	"strings"
@@ -20,12 +21,8 @@ type Behavior struct {
 	Delay bool
 }
 
-type Config struct {
-	Servers []string
-}
-
 var rules map[ServerConnection]*Behavior
-var config Config
+var cf config.Config
 
 func (t *Check) CheckRPC(in string, out *string) error {
 	s := []string{in, "Delay"}
@@ -35,15 +32,15 @@ func (t *Check) CheckRPC(in string, out *string) error {
 }
 
 type RuleCommandRpcInput struct {
-	input    string
-	output   string
-	behavior string
-	on       bool
+	Input    string
+	Output   string
+	Behavior string
+	On       bool
 }
 
 func serverExists(name string) bool {
-	for _, server := range config.Servers {
-		if server == name {
+	for _, s := range cf.Servers {
+		if s.Name == name {
 			return true
 		}
 	}
@@ -59,25 +56,25 @@ func addRuleToServer(in RuleCommandRpcInput, inServer, outServer string) {
 		behavior = &Behavior{} // Behaviors default to false
 	}
 
-	if in.behavior == "delay" {
-		behavior.Delay = in.on
+	if in.Behavior == "delay" {
+		behavior.Delay = in.On
 	}
-	if in.behavior == "drop" {
-		behavior.Drop = in.on
+	if in.Behavior == "drop" {
+		behavior.Drop = in.On
 	}
 
 	rules[sc] = behavior
 }
 
 func (t *Check) AddRule(in RuleCommandRpcInput, out *bool) error {
-	if !serverExists(in.input) {
+	if !serverExists(in.Input) {
 		return errors.New("Input server not known by debug server")
 	}
-	if !serverExists(in.output) {
+	if !serverExists(in.Output) {
 		return errors.New("Output server not known by debug server")
 	}
 
-	addRuleToServer(in, in.input, in.output)
+	addRuleToServer(in, in.Input, in.Output)
 
 	*out = true
 	return nil
@@ -95,38 +92,3 @@ func (t *Check) GetRule(in ServerConnection, out *Behavior) error {
 
 	return nil
 }
-
-/* TODO Make debugRpcServer runner
-Additional imports needed:
-	"gopkg.in/yaml.v2"
-	"io/ioutil"
-	"net"
-	"net/http"
-	"net/rpc"
-
-
-func main() {
-	// Load config
-	file, e := ioutil.ReadFile("config.yaml")
-	if e != nil {
-		fmt.Println("Error: ", e)
-	}
-	e = yaml.Unmarshal(file, &config)
-	if e != nil {
-		fmt.Println("Error: ", e)
-	}
-	fmt.Println("Config: ", config)
-
-	// Start server
-	check := new(Check)
-	rpc.Register(check)
-	rpc.HandleHTTP()
-	fmt.Println("About to listen...")
-	l, e := net.Listen("tcp", ":8081")
-	if e != nil {
-		fmt.Println("Error: ", e)
-	} else {
-		fmt.Println("No errors listening. About to serve...")
-		http.Serve(l, nil)
-	}
-}*/
