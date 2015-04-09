@@ -34,6 +34,19 @@ func StartAllServers() *ServerManager {
 	return sm
 }
 
+func StartDebugServer() error {
+	serverName := "debugServer"
+	cmd := exec.Command("go", "run", "src/debugRpcServer/erver/run/runner.go",
+		serverName)
+	return cmd.Start()
+}
+
+func (sm *ServerManager) KillAllServers() {
+	for _, cmd := range sm.serverCommands {
+		cmd.Process.Kill()
+	}
+}
+
 func (sm *ServerManager) KillServer(serverName string) error {
 	if cmd, ok := sm.serverCommands[serverName]; ok {
 		if err := cmd.Process.Kill(); err != nil {
