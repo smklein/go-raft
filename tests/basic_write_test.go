@@ -21,18 +21,28 @@ func TestBasicWrite(t *testing.T) {
 
 	serverNames = cfg.GetServerNames()
 
+	err := serverManagement.StartDebugServer()
+	if err != nil {
+		t.Errorf("Failure starting debug server: %s", err)
+		return
+	}
 	sm := serverManagement.StartAllServers()
+	if sm == nil {
+		t.Errorf("Failure starting raft servers")
+		return
+	}
 	t.Logf("All servers started")
 
 	// Initialize client
 	client := raftClient.RaftClient{}
 
 	// Commit a single value
-	err := client.Commit(testValue)
+	err = client.Commit(testValue)
 	if err != nil {
 		t.Errorf("Commit failure: %s", err)
 		return
 	}
+	t.Logf("Value written")
 
 	// Sleep for 100 ms
 	time.Sleep(100 * time.Millisecond)
@@ -43,6 +53,7 @@ func TestBasicWrite(t *testing.T) {
 		t.Errorf("Log reading failure: %s", err)
 		return
 	}
+	t.Logf("Value read")
 
 	if readValue != testValue {
 		t.Errorf("Incorrect value read - testValue: <%s> - readValue: <%s>", testValue, readValue)
@@ -61,6 +72,7 @@ func TestBasicWrite(t *testing.T) {
 			return
 		}
 	}
+	t.Logf("Test passed")
 
 	sm.KillAllServers()
 }
