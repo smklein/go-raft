@@ -3,14 +3,15 @@ package tests
 import (
 	"config"
 	"raftClient"
+	"serverManagement"
 	"testing"
 	"time"
 )
 
 func TestBasicWrite(t *testing.T) {
 	var cfg config.Config
-	//var serverNames []string
-	var testValue = "testValue"
+	var serverNames []string
+	var testValue = ""
 
 	t.Logf("Basic write test started")
 
@@ -18,9 +19,10 @@ func TestBasicWrite(t *testing.T) {
 		t.Errorf("Cannot load config")
 	}
 
-	//serverNames = cfg.GetServerNames()
+	serverNames = cfg.GetServerNames()
 
-	//TODO: Initialize all servers
+	sm := serverManagement.StartAllServers()
+	t.Logf("All servers started")
 
 	// Initialize client
 	client := raftClient.RaftClient{}
@@ -35,7 +37,7 @@ func TestBasicWrite(t *testing.T) {
 	// Sleep for 100 ms
 	time.Sleep(100 * time.Millisecond)
 
-	// Verify that the log has been properly replicated
+	// Verify that the log has been updated
 	readValue, err := client.ReadLog(0)
 	if err != nil {
 		t.Errorf("Log reading failure: %s", err)
@@ -47,6 +49,18 @@ func TestBasicWrite(t *testing.T) {
 		return
 	}
 
+	// Verify that the log has been properly replicated
+	for _, server := range(serverNames) {
+		readValue, err = client.ReadLogAtServer(0, server)
+		if err != nil {
+			t.Errorf("Log reading failure at server <%s>: %s", server, err)
+			return
+		}
+		if readValue != testValue {
+			t.Errorf("Incorrect value read at server <%s> - testValue: <%s> - readValue: <%s>", server, testValue, readValue)
+			return
+		}
+	}
 
-	t.Errorf("Failed")
+	sm.KillAllServers()
 }
