@@ -39,7 +39,6 @@ type RuleCommandRpcInput struct {
 }
 
 func serverExists(name string) bool {
-	fmt.Println("config: ", Cf)
 	for _, s := range Cf.Servers {
 		if s.Name == name {
 			return true
