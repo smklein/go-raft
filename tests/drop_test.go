@@ -46,7 +46,7 @@ func TestDropServers(t *testing.T) {
 			debug, err := rpc.DialHTTP("tcp", server.Address + ":" + strconv.Itoa(server.Port))
 			if err != nil {
 				t.Errorf("Cannot contact debug server:\n%s", err)
-				//return
+				return
 			}
 			debugServer = debug
 		}
@@ -57,22 +57,58 @@ func TestDropServers(t *testing.T) {
 		if !result {
 			return
 		}
+
+		// DO some shit - all logs up to date except server 1
+		// 1. Write value to system
+		// 2. Verify values on all servers except 1
+
 		for _, server2 := range(serverNames) {
 			if server2 == server1 {
 				continue
 			}
 			t.Logf("Dropping second server: %s", server2)
+			result := updateServer(t, server2, true)
+			if !result {
+				return
+			}
+
+			// Do some shit - all logs up to date except servers 1 and 2
+			// 1. Write value to system
+			// 2. Verify values on all servers except 1 and 2
+
 			for _, server3 := range(serverNames) {
 				if server3 == server1 || server3 == server2 {
 					continue
 				}
 				t.Logf("Dropping third server: %s", server3)
+				result := updateServer(t, server3, true)
+				if !result {
+					return
+				}
+
+				// Do some shit - no progress here, client RPC should hang
+
+				result = updateServer(t, server2, false)
+				if !result {
+					return
+				}
+
+				// Wait on the previous channel until it succeeds
 			}
+
+			result = updateServer(t, server1, false)
+			if !result {
+				return
+			}
+
+			// Log should be up to date for all servers except server 1
 		}
 		result = updateServer(t, server1, false)
 		if !result {
 			return
 		}
+
+		// Logs should all be equal and up to date
 
 	}
 	t.Logf("Test drop finished")

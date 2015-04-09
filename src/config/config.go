@@ -32,3 +32,15 @@ func LoadConfig(config *Config) bool {
 	//fmt.Println("Config: ", config)
 	return true
 }
+
+func (cfg *Config) GetServerNames() []string {
+	serverNames := make([]string, len(cfg.Servers) - 1)
+	i := 0
+	for _, server := range(cfg.Servers) {
+		if server.Name != "debugServer" {
+			serverNames[i] = server.Name
+			i++
+		} 
+	}
+	return serverNames
+}
