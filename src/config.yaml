@@ -7,11 +7,10 @@ servers:
       address: localhost
       port: 8081
 
+    - name: server3
+      address: localhost
+      port: 8083
+
     - name: debugServer
       address: localhost
       port: 8082
-
-rules:
-    - source: server1
-      dest: server2
-      action: drop
