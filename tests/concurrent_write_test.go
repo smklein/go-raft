@@ -3,17 +3,34 @@ package tests
 import (
 	"config"
 	"raftClient"
+	"raftPersistency"
 	"serverManagement"
 	"testing"
 	"time"
 )
 
-func TestSequentialWrite(t *testing.T) {
+func commitOneValue(t * testing.T, value string, resultChan chan bool) {
+	// Initialize client
+	client := raftClient.RaftClient{}
+
+	// Commit a single value
+	err := client.Commit(value)
+	if err != nil {
+		t.Errorf("Commit failure: %s", err)
+		resultChan <- false
+		return
+	}
+	resultChan <- true
+}
+
+func TestBasicWrite(t *testing.T) {
 	var cfg config.Config
 	var serverNames []string
 	var testValues = []string{"", "", "", "", ""}
+	var numClients = len(testValues)
+	var readValues = make([]string, numClients)
 
-	t.Logf("Sequential write test started")
+	t.Logf("Basic write test started")
 
 	if !config.LoadConfig(&cfg) {
 		t.Errorf("Cannot load config")
@@ -39,39 +56,36 @@ func TestSequentialWrite(t *testing.T) {
 	}
 	t.Logf("All servers started")
 
+	resultChan := make(chan bool, numClients)
+	for _, testVal := range(testValues) {
+		go commitOneValue(t, testVal, resultChan)
+	}
+
 	// Initialize client
 	client := raftClient.RaftClient{}
 
-	// Commit the sequence of values value
-	for i, testVal := range(testValues) {
-		err = client.Commit(testVal)
-		if err != nil {
-			t.Errorf("Commit failure on string #%d <%s>: %s", i, testVal, err)
+	for i := 0; i < numClients; i++ {
+		if <-resultChan == false {
+			t.Errorf("Client write failure, terminating test")
 			return
+		} else {
+			readValue, err := client.ReadLog(i)
+			if err != nil {
+				t.Errorf("Log reading failure at index %d: %s", i, err)
+				return
+			}
+			readValues = append(readValues, readValue)
 		}
 	}
-	t.Logf("Values written")
+	
+	t.Logf("Values written and read from system")
 
 	// Sleep for 100 ms
 	time.Sleep(100 * time.Millisecond)
 
-	// Verify that the log has been updated
-	for i, testVal := range(testValues) {
-		readValue, err := client.ReadLog(i)
-		if err != nil {
-			t.Errorf("Log reading failure on string #%d <%s>: %s", i, testVal, err)
-			return
-		}
-		if readValue != testVal {
-			t.Errorf("Incorrect value read - index: <%d> - testValue: <%s> - readValue: <%s>", i, testVal, readValue)
-			return
-		}
-	}
-	t.Logf("Values read and verified in system")
-
 	// Verify that the log has been properly replicated
 	for _, server := range(serverNames) {
-		for i, testVal := range(testValues) {
+		for i, testVal := range(readValues) {
 			readValue, err := client.ReadLogAtServer(i, server)
 			if err != nil {
 				t.Errorf("Log reading for string #%d failure at server <%s>: %s", i, server, err)
