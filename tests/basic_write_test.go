@@ -3,6 +3,7 @@ package tests
 import (
 	"config"
 	"raftClient"
+	"raftPersistency"
 	"serverManagement"
 	"testing"
 	"time"

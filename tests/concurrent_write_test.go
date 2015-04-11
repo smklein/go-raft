@@ -23,7 +23,7 @@ func commitOneValue(t * testing.T, value string, resultChan chan bool) {
 	resultChan <- true
 }
 
-func TestBasicWrite(t *testing.T) {
+func TestConcurrentWrite(t *testing.T) {
 	var cfg config.Config
 	var serverNames []string
 	var testValues = []string{"", "", "", "", ""}
