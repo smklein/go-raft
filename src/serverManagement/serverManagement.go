@@ -4,6 +4,7 @@ import (
 	"config"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 )
 
@@ -23,7 +24,7 @@ func StartAllServers() *ServerManager {
 	for _, s := range sm.Cf.Servers {
 		if s.Name != "debugServer" {
 			fmt.Println("[SERVER MANAGEMENT] Starting server: ", s.Name)
-			cmd := exec.Command("go", "run", "src/server/run/runner.go", s.Name)
+			cmd := exec.Command("go", "run", os.Getenv("GOPATH")+"src/server/run/runner.go", s.Name)
 			err := cmd.Start()
 			if err != nil {
 				fmt.Println("[SERVER MANAGEMENT] Could not start server")
@@ -35,9 +36,7 @@ func StartAllServers() *ServerManager {
 }
 
 func StartDebugServer() error {
-	serverName := "debugServer"
-	cmd := exec.Command("go", "run", "src/debugRpcServer/erver/run/runner.go",
-		serverName)
+	cmd := exec.Command("go", "run", os.Getenv("GOPATH")+"src/debugRpcServer/run/runner.go")
 	return cmd.Start()
 }
 
@@ -69,7 +68,7 @@ func (sm *ServerManager) RestartAllServers() error {
 
 func (sm *ServerManager) RestartServer(serverName string) error {
 	if _, ok := sm.serverCommands[serverName]; ok {
-		cmd := exec.Command("go", "run", "src/server/run/runner.go", serverName)
+		cmd := exec.Command("go", "run", os.Getenv("GOPATH")+"src/server/run/runner.go", serverName)
 		if err := cmd.Start(); err != nil {
 			return errors.New("Could not restart server")
 		} else {

@@ -34,7 +34,10 @@ func updateServer(t *testing.T, s1 string, drop bool) bool {
 
 func TestDropServers(t *testing.T) {
 	t.Logf("Test drop started")
-	serverManagement.StartDebugServer()
+	err := serverManagement.StartDebugServer()
+	if err != nil {
+		t.Errorf("Error: %s", err.Error())
+	}
 	sm := serverManagement.StartAllServers()
 	if sm == nil {
 		t.Errorf("Could not start servers")
