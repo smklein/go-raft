@@ -11,7 +11,7 @@ import (
 func TestBasicWrite(t *testing.T) {
 	var cfg config.Config
 	var serverNames []string
-	var testValue = ""
+	var testValue = "basic write test value"
 
 	t.Logf("Basic write test started")
 
@@ -61,7 +61,7 @@ func TestBasicWrite(t *testing.T) {
 	}
 
 	// Verify that the log has been properly replicated
-	for _, server := range(serverNames) {
+	for _, server := range serverNames {
 		readValue, err = client.ReadLogAtServer(0, server)
 		if err != nil {
 			t.Errorf("Log reading failure at server <%s>: %s", server, err)
