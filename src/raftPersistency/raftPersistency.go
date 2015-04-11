@@ -12,7 +12,7 @@ THESE FUNCTIONS ARE NOT TO BE RUN WHILE A SERVER IS ACTIVE.
 */
 
 func getDataPath(serverName string) string {
-	return "data/" + serverName
+	return os.Getenv("GOPATH") + "data/" + serverName
 }
 
 func DeleteLog(serverName string) error {
@@ -26,9 +26,11 @@ func DeleteAllLogs() error {
 		return errors.New("Cannot load config")
 	}
 	for _, s := range Cf.Servers {
-		err := DeleteLog(s.Name)
-		if err != nil {
-			return err
+		if s.Name != "debugServer" {
+			err := DeleteLog(s.Name)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil

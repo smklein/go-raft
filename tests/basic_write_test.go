@@ -3,6 +3,7 @@ package tests
 import (
 	"config"
 	"raftClient"
+	"raftPersistency"
 	"serverManagement"
 	"testing"
 	"time"
@@ -21,7 +22,13 @@ func TestBasicWrite(t *testing.T) {
 
 	serverNames = cfg.GetServerNames()
 
-	err := serverManagement.StartDebugServer()
+	err := raftPersistency.DeleteAllLogs() 
+	if err != nil {
+		t.Errorf("Could not clear log files: %s", err)
+		return
+	}
+
+	err = serverManagement.StartDebugServer()
 	if err != nil {
 		t.Errorf("Failure starting debug server: %s", err)
 		return
