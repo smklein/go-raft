@@ -1,7 +1,7 @@
 package raftClient
 
 import (
-	//"net/rpc"
+//"net/rpc"
 )
 
 type RaftClient struct {
@@ -22,4 +22,11 @@ func (client *RaftClient) ReadLogAtServer(index int, server string) (string, err
 
 func (client *RaftClient) ReadEntireLogAtServer(index int, server string) ([]string, error) {
 	return nil, nil
+}
+
+/*
+DEBUG function, asks if server is "leader", "follower", or "candidate"
+*/
+func (client *RaftClient) DebugGetServerStatus(server string) (string, error) {
+	return "", nil
 }
