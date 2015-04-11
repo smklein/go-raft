@@ -58,6 +58,15 @@ func (sm *ServerManager) KillServer(serverName string) error {
 	}
 }
 
+func (sm *ServerManager) RestartAllServers() error {
+	for _, s := range sm.Cf.Servers {
+		if err := sm.RestartServer(s.Name); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (sm *ServerManager) RestartServer(serverName string) error {
 	if _, ok := sm.serverCommands[serverName]; ok {
 		cmd := exec.Command("go", "run", "src/server/run/runner.go", serverName)
