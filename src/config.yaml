@@ -1,16 +1,24 @@
 servers:
     - name: server1
       address: localhost
-      port: 8080
+      port: 8081
 
     - name: server2
       address: localhost
-      port: 8081
+      port: 8082
 
     - name: server3
       address: localhost
       port: 8083
 
+    - name: server4
+      address: localhost
+      port: 8084
+    
+    - name: server5
+      address: localhost
+      port: 8085
+
     - name: debugServer
       address: localhost
-      port: 8082
+      port: 8086
