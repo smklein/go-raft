@@ -4,6 +4,7 @@ import (
 	"config"
 	"errors"
 	"fmt"
+	"net/rpc"
 	"strings"
 )
 
@@ -90,5 +91,57 @@ func (t *Check) GetRule(in ServerConnection, out *Behavior) error {
 
 	out = rules[in]
 
+	return nil
+}
+
+/** Functions which can be used by the client to contact a server */
+type ClientDebugServer struct {
+	dbgServer   *rpc.Client
+	serverNames []string
+}
+
+func CreateDebugServerConnection(addr string, serverNames []string) *ClientDebugServer {
+	dbg := &ClientDebugServer{}
+	debug, err := rpc.DialHTTP("tcp", addr)
+	dbg.dbgServer = debug
+	if err != nil {
+		return nil
+	}
+	dbg.serverNames = serverNames
+	return dbg
+}
+
+func (dbg *ClientDebugServer) AddRule(s1, s2, action string, on bool) error {
+	var result bool
+	args := RuleCommandRpcInput{s1, s2, action, on}
+	err := dbg.dbgServer.Call("Check.AddRule", args, &result)
+	if err != nil {
+		return err
+	}
+	if !result {
+		return errors.New("Could not add rule to debug server")
+	}
+	return nil
+}
+
+func (dbg *ClientDebugServer) AddRuleIncomingFromServer(s1, action string, on bool) error {
+	for _, s2 := range dbg.serverNames {
+		if s1 != s2 {
+			if err := (dbg.AddRule(s1, s2, action, on)); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (dbg *ClientDebugServer) AddRuleOutputToServer(s1, action string, on bool) error {
+	for _, s2 := range dbg.serverNames {
+		if s1 != s2 {
+			if err := (dbg.AddRule(s2, s1, action, on)); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }

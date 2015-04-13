@@ -3,36 +3,13 @@ package tests
 import (
 	"config"
 	"debugRpcServer"
-	"net/rpc"
 	"serverManagement"
 	"strconv"
 	"testing"
 )
 
-var cfg config.Config
-var serverNames []string
-var debugServer *rpc.Client
-
-func updateServer(t *testing.T, s1 string, drop bool) bool {
-	for _, s2 := range serverNames {
-		if s1 != s2 {
-			var result bool
-			args := debugRpcServer.RuleCommandRpcInput{s1, s2, "drop", drop}
-			err := debugServer.Call("Check.AddRule", args, &result)
-			if err != nil {
-				t.Errorf("Error at debug server for %s (in) and %s (out): %s", s1, s2, err)
-				return false
-			}
-			if !result {
-				t.Errorf("Debug server failed to update drop from %s to %s with %b", s1, s2, drop)
-				return false
-			}
-		}
-	}
-	return true
-}
-
 func TestDropServers(t *testing.T) {
+	var cfg config.Config
 	t.Logf("Test drop started")
 	err := serverManagement.StartDebugServer()
 	if err != nil {
@@ -45,26 +22,29 @@ func TestDropServers(t *testing.T) {
 	if !config.LoadConfig(&cfg) {
 		t.Errorf("Cannot load config")
 	}
-	serverNames = make([]string, len(cfg.Servers)-1)
+	serverNames := make([]string, len(cfg.Servers)-1)
 	i := 0
+	var addr string
 	for _, server := range cfg.Servers {
 		if server.Name != "debugServer" {
 			serverNames[i] = server.Name
 			i++
 		} else {
-			debug, err := rpc.DialHTTP("tcp", server.Address+":"+strconv.Itoa(server.Port))
-			if err != nil {
-				t.Errorf("Cannot contact debug server:\n%s", err)
-				return
-			}
-			debugServer = debug
+			addr = server.Address + ":" + strconv.Itoa(server.Port)
 		}
 	}
+	dbg := debugRpcServer.CreateDebugServerConnection(addr, serverNames)
+	if dbg == nil {
+		t.Errorf("Could not dial debug server")
+	}
+
 	for _, server1 := range serverNames {
 		t.Logf("Dropping first server: %s", server1)
-		result := updateServer(t, server1, true)
-		if !result {
-			return
+		if err := dbg.AddRuleIncomingFromServer(server1, "drop", true); err != nil {
+			t.Errorf("Could not add incoming rules")
+		}
+		if err := dbg.AddRuleOutputToServer(server1, "drop", true); err != nil {
+			t.Errorf("Could not add outgoing rule")
 		}
 
 		// DO some shit - all logs up to date except server 1
@@ -76,10 +56,8 @@ func TestDropServers(t *testing.T) {
 				continue
 			}
 			t.Logf("Dropping second server: %s", server2)
-			result := updateServer(t, server2, true)
-			if !result {
-				return
-			}
+			dbg.AddRuleIncomingFromServer(server2, "drop", true)
+			dbg.AddRuleOutputToServer(server2, "drop", true)
 
 			// Do some shit - all logs up to date except servers 1 and 2
 			// 1. Write value to system
@@ -90,31 +68,20 @@ func TestDropServers(t *testing.T) {
 					continue
 				}
 				t.Logf("Dropping third server: %s", server3)
-				result := updateServer(t, server3, true)
-				if !result {
-					return
-				}
+				dbg.AddRuleIncomingFromServer(server3, "drop", true)
+				dbg.AddRuleOutputToServer(server3, "drop", true)
 
 				// Do some shit - no progress here, client RPC should hang
 
-				result = updateServer(t, server2, false)
-				if !result {
-					return
-				}
+				dbg.AddRuleIncomingFromServer(server2, "drop", false)
+				dbg.AddRuleOutputToServer(server2, "drop", false)
 
 				// Wait on the previous channel until it succeeds
 			}
 
-			result = updateServer(t, server1, false)
-			if !result {
-				return
-			}
+			dbg.AddRuleIncomingFromServer(server1, "drop", false)
+			dbg.AddRuleOutputToServer(server1, "drop", false)
 
-			// Log should be up to date for all servers except server 1
-		}
-		result = updateServer(t, server1, false)
-		if !result {
-			return
 		}
 
 		// Logs should all be equal and up to date

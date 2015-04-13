@@ -78,7 +78,7 @@ func TestIllegalReadLog(t *testing.T) {
 		t.Errorf("Expected client to fail when reading log value 1")
 	} else if err.Error() != "Log does not contain index" {
 		// TODO Verify the error value here
-		t.Errorf("Expected a different error value")
+		t.Errorf("Expected a different error value (TODO errval) ")
 	}
 
 	t.Logf("Test passed")
