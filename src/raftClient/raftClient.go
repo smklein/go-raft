@@ -3,6 +3,7 @@ package raftClient
 import (
 //"net/rpc"
 	"errors"
+	"fmt"
 )
 
 type RaftClient struct {
@@ -45,7 +46,7 @@ func (client *RaftClient) DebugGetRaftLeader() (string, error) {
 				leader = server
 			}
 		} else if status == "leader" {
-			return "", errors.New("Multiple leaders detected")
+			return "", errors.New(fmt.Sprintf("Multiple leaders detected: <%s>, <%s>", leader, server))
 		}
 	}
 	if leader == "" {
@@ -55,6 +56,6 @@ func (client *RaftClient) DebugGetRaftLeader() (string, error) {
 	}
 }
 
-func (client *RaftClient) CommitToServer(value, server string) error {
+func (client *RaftClient) DebugCommitToServer(value, server string) error {
 	return nil
 }
