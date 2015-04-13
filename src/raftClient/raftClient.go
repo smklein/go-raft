@@ -54,3 +54,7 @@ func (client *RaftClient) DebugGetRaftLeader() (string, error) {
 		return leader, nil
 	}
 }
+
+func (client *RaftClient) CommitToServer(value, server string) error {
+	return nil
+}
