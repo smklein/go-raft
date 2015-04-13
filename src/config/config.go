@@ -5,6 +5,7 @@ import (
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
+	"strconv"
 )
 
 type Server struct {
@@ -34,13 +35,22 @@ func LoadConfig(config *Config) bool {
 }
 
 func (cfg *Config) GetServerNames() []string {
-	serverNames := make([]string, len(cfg.Servers) - 1)
+	serverNames := make([]string, len(cfg.Servers)-1)
 	i := 0
-	for _, server := range(cfg.Servers) {
+	for _, server := range cfg.Servers {
 		if server.Name != "debugServer" {
 			serverNames[i] = server.Name
 			i++
-		} 
+		}
 	}
 	return serverNames
+}
+
+func (cfg *Config) GetDebugAddr() string {
+	for _, server := range cfg.Servers {
+		if server.Name == "debugServer" {
+			return server.Address + ":" + strconv.Itoa(server.Port)
+		}
+	}
+	return ""
 }
