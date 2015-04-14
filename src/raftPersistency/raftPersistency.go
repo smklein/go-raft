@@ -2,10 +2,9 @@ package raftPersistency
 
 import (
 	"config"
-	//"encoding/json"
+	"encoding/gob"
 	"errors"
 	"fmt"
-	//"io/ioutil"
 	"os"
 	"raftRpc"
 )
@@ -18,16 +17,30 @@ type RaftPersistentState struct {
 }
 
 func LoadState(server string) (*RaftPersistentState, error) {
-	return &RaftPersistentState{}, errors.New("No state found")
+	path := getDataPath(server)
+    dataFile, err := os.Open(path)
+    if err != nil {
+    	return nil, err
+    }
+    dataDecoder := gob.NewDecoder(dataFile)
+    state := &RaftPersistentState{}
+    err = dataDecoder.Decode(&state)
+    if err != nil {
+    	return state, nil
+    } else {
+    	return state, dataFile.Close()
+    }
 }
 
 func (state *RaftPersistentState) SaveState(server string) error {
-	/* b, err := json.Marshal(state)
+	path := getDataPath(server)
+    dataFile, err := os.Create(path)
     if err != nil {
-        return err
+    	return err
     }
-    err = ioutil.WriteFile(getDataPath(name, d1, 0644) */
-   	return nil
+    dataEncoder := gob.NewEncoder(dataFile)
+    dataEncoder.Encode(state)
+    return dataFile.Close()
 }
 
 /**
