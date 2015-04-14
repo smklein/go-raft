@@ -13,22 +13,53 @@ import (
 
 var (
 	DEBUG         = true
-	serverAddress = ":8081" // TODO Read this from config.yaml
+	serverAddress = ""
 )
 
 type RaftClient struct {
-	client      *rpc.Client
-	debugClient *rpc.Client
-}
-
-type RaftClientArgs struct {
-	// TODO Fill this!
+	client       *rpc.Client
+	debugClient  *rpc.Client
 	inputServer  string
 	outputServer string
 }
 
+type LogEntry struct {
+	Command string
+	Term    int
+}
+
+type AppendEntriesInput struct {
+	Term         int
+	LeaderId     int
+	PrevLogIndex int
+	PrevLogTerm  int
+	Entries      []LogEntry
+	LeaderCommit int
+}
+type AppendEntriesOutput struct {
+	Term    int
+	Success bool
+}
+
+type RequestVoteInput struct {
+	Term         int
+	CandidateId  int
+	LastLogIndex int
+	LastLogTerm  int
+}
+type RequestVoteOutput struct {
+	Term        int
+	VoteGranted bool
+}
+
+type RaftClientArgs struct {
+	AppendEntriesIn *AppendEntriesInput
+	RequestVoteIn   *RequestVoteInput
+}
+
 type RaftClientReply struct {
-	// TODO Fill this!
+	AppendEntriesOut *AppendEntriesOutput
+	RequestVoteOut   *RequestVoteOutput
 }
 
 func DialHTTP(network, address string) (*RaftClient, error) {
@@ -61,7 +92,7 @@ func DialHTTP(network, address string) (*RaftClient, error) {
 
 func (rc *RaftClient) Call(serviceMethod string, args RaftClientArgs, reply *RaftClientReply) error {
 	if DEBUG {
-		sc := debugRpcServer.ServerConnection{args.inputServer, args.outputServer}
+		sc := debugRpcServer.ServerConnection{rc.inputServer, rc.outputServer}
 		var behavior debugRpcServer.Behavior
 		err := rc.debugClient.Call("Check.GetRule", sc, &behavior)
 		if err != nil {
