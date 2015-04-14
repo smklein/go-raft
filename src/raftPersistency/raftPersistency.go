@@ -2,10 +2,10 @@ package raftPersistency
 
 import (
 	"config"
-	"encoding/json"
+	//"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	//"io/ioutil"
 	"os"
 	"raftRpc"
 )
@@ -21,7 +21,7 @@ func LoadState(server string) (*RaftPersistentState, error) {
 	return &RaftPersistentState{}, errors.New("No state found")
 }
 
-func (server string, state *RaftPersistentState) SaveState() error {
+func (state *RaftPersistentState) SaveState(server string) error {
 	/* b, err := json.Marshal(state)
     if err != nil {
         return err
