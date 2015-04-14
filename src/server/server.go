@@ -74,8 +74,8 @@ func CreateRaftServer(serverName string) *RaftServer {
 
 // TODO Add ability to call this function in client.
 // TODO Add other RPCs needed by client.
-func (rs *RaftServer) Commit(in RaftServerInput,
-	out *RaftServerOutput) error {
+func (rs *RaftServer) Commit(in string,
+	out *string) error {
 	fmt.Println("[RAFT SERVER] Commit Called")
 	return nil
 }

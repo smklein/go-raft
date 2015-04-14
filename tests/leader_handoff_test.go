@@ -2,6 +2,7 @@ package tests
 
 import (
 	"config"
+	"debugRpcServer"
 	"raftClient"
 	"raftPersistency"
 	"serverManagement"
@@ -40,6 +41,10 @@ func TestLeaderHandoff(t *testing.T) {
 	}
 	t.Logf("All servers started")
 
+	// Contact debug server
+	addr := cfg.GetDebugAddr()
+	dbg := debugRpcServer.CreateDebugServerConnection(addr, serverNames)
+
 	// Initialize client
 	client := raftClient.RaftClient{}
 	firstLeader, err := client.DebugGetRaftLeader()
@@ -47,7 +52,10 @@ func TestLeaderHandoff(t *testing.T) {
 		t.Errorf("Could not determine initial leader: %s", err)
 		return
 	}
-	//TODO: block communication to/from old leader
+
+	// block communication to/from old leader
+	dbg.AddRuleIncomingFromServer(firstLeader, "drop", true)
+	dbg.AddRuleOutputToServer(firstLeader, "drop", true)
 
 	// Sleep for 100 ms
 	time.Sleep(100 * time.Millisecond)
@@ -136,7 +144,9 @@ func TestLeaderHandoff(t *testing.T) {
 		}
 	}
 
-	//TODO: open communication to/from old leader
+	//open communication to/from old leader
+	dbg.AddRuleIncomingFromServer(firstLeader, "drop", false)
+	dbg.AddRuleOutputToServer(firstLeader, "drop", false)
 
 	// Sleep for 100 ms
 	time.Sleep(100 * time.Millisecond)
