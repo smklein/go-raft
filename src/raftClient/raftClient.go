@@ -1,17 +1,49 @@
 package raftClient
 
 import (
-//"net/rpc"
+	"config"
+	"net/rpc"
 	"errors"
 	"fmt"
+	"strconv"
 )
 
 type RaftClient struct {
-	test int
-	serverNames []string
+	leader string
+	connections map[string]*rpc.Client
+}
+
+func CreateRaftClient(cfg *config.Config) *RaftClient{
+	client := &RaftClient{}
+	client.connections = make(map[string]*rpc.Client)
+	for _, server := range(cfg.Servers) {
+		if server.Name != "debugServer" {
+			addr := server.Address + ":" + strconv.Itoa(server.Port)
+			con, err := rpc.DialHTTP("tcp", addr)
+			if err != nil {
+				fmt.Println("Failed to connect with server <%s> when starting client", server.Name)
+				return nil
+			}
+			client.connections[server.Name] = con
+		}
+	}
+	return client
 }
 
 func (client *RaftClient) Commit(value string) error {
+	if client.leader == "" {
+		leader, err := client.DebugGetRaftLeader()
+		if err != nil {
+			return err
+		}
+		client.leader = leader
+	}
+	var result string
+	err := client.connections[client.leader].Call("RaftServer.Commit", value, &result)
+	if err != nil {
+		return err
+	}
+	//TODO: proccess info in result
 	return nil
 }
 
@@ -36,7 +68,7 @@ func (client *RaftClient) DebugGetServerStatus(server string) (string, error) {
 
 func (client *RaftClient) DebugGetRaftLeader() (string, error) {
 	var leader string
-	for _, server := range(client.serverNames) {
+	for server, _ := range(client.connections) {
 		status, err := client.DebugGetServerStatus(server)
 		if err != nil {
 			return "", err
