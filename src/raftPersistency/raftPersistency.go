@@ -15,6 +15,14 @@ type RaftPersistentState struct {
 	Log         []raftRpc.LogEntry
 }
 
+func LoadState() (*RaftPersistentState, error) {
+	return &RaftPersistentState{}, errors.New("No state found")
+}
+
+func (state *RaftPersistentState) SaveState() error {
+	return nil
+}
+
 /**
 THESE FUNCTIONS ARE NOT TO BE RUN WHILE A SERVER IS ACTIVE.
 */
