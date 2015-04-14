@@ -5,7 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"raftRpc"
 )
+
+/* Persistent raft state on all servers */
+type RaftPersistentState struct {
+	CurrentTerm int
+	VotedFor    int // -1 represents null.
+	Log         []raftRpc.LogEntry
+}
 
 /**
 THESE FUNCTIONS ARE NOT TO BE RUN WHILE A SERVER IS ACTIVE.

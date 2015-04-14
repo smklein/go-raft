@@ -7,16 +7,10 @@ import (
 	"net"
 	"net/http"
 	"net/rpc"
+	"raftPersistency"
 	"raftRpc"
 	"strconv"
 )
-
-/* Persistent raft state on all servers */
-type RaftPersistentState struct {
-	currentTerm int
-	votedFor    int // -1 represents null.
-	log         []raftRpc.LogEntry
-}
 
 /* All state on all servers */
 type RaftServer struct {
@@ -24,7 +18,7 @@ type RaftServer struct {
 	cf         config.Config
 	serverMap  map[int]*raftRpc.RaftClient
 
-	pState      *RaftPersistentState
+	pState      *raftPersistency.RaftPersistentState
 	state       string /* "follower", "candidate", "leader" */
 	commitIndex int
 	lastApplied int
@@ -59,7 +53,8 @@ func CreateRaftServer(serverName string) *RaftServer {
 		return nil
 	}
 	// TODO Store/Load!
-	rs.pState = &RaftPersistentState{}
+	rs.pState = &raftPersistency.RaftPersistentState{}
+	rs.pState.VotedFor = -1
 	rs.serverName = serverName
 	rs.state = "follower"
 	rpc.Register(rs)
@@ -69,7 +64,15 @@ func CreateRaftServer(serverName string) *RaftServer {
 		return nil
 	}
 	http.Serve(l, nil)
+	go rs.RunStateMachine()
 	return rs
+}
+
+// Function which follows Raft algorithm according to state.
+func (rs *RaftServer) RunStateMachine() {
+	for true {
+
+	}
 }
 
 // TODO Add ability to call this function in client.
@@ -91,19 +94,19 @@ func (rs *RaftServer) AppendEntries(in raftRpc.RaftClientArgs,
 	out.AppendEntriesOut = &raftRpc.AppendEntriesOutput{}
 
 	// 1. Reply false if term < currentTerm
-	if in.AppendEntriesIn.Term < rs.pState.currentTerm {
+	if in.AppendEntriesIn.Term < rs.pState.CurrentTerm {
 		out.AppendEntriesOut.Success = false
-		out.AppendEntriesOut.Term = rs.pState.currentTerm
+		out.AppendEntriesOut.Term = rs.pState.CurrentTerm
 		return nil
-	} else if in.AppendEntriesIn.Term > rs.pState.currentTerm {
-		rs.pState.currentTerm = in.AppendEntriesIn.Term
+	} else if in.AppendEntriesIn.Term > rs.pState.CurrentTerm {
+		rs.pState.CurrentTerm = in.AppendEntriesIn.Term
 		rs.state = "follower"
-		out.AppendEntriesOut.Term = rs.pState.currentTerm
+		out.AppendEntriesOut.Term = rs.pState.CurrentTerm
 	}
 	// 2. Reply false if log doesn't contain an entry at
 	// prevLogIndex whose term matches prevLogTerm.
-	if (len(rs.pState.log) < in.AppendEntriesIn.PrevLogIndex) ||
-		(rs.pState.log[in.AppendEntriesIn.PrevLogIndex].Term !=
+	if (len(rs.pState.Log) < in.AppendEntriesIn.PrevLogIndex) ||
+		(rs.pState.Log[in.AppendEntriesIn.PrevLogIndex].Term !=
 			in.AppendEntriesIn.PrevLogTerm) {
 		out.AppendEntriesOut.Success = false
 		return nil
@@ -113,18 +116,18 @@ func (rs *RaftServer) AppendEntries(in raftRpc.RaftClientArgs,
 	// that follow it.
 	startIndex := in.AppendEntriesIn.PrevLogIndex + 1
 	for i := startIndex; i < startIndex+len(in.AppendEntriesIn.Entries); i++ {
-		if len(rs.pState.log) < i {
+		if len(rs.pState.Log) < i {
 			break
-		} else if rs.pState.log[i].Term != in.AppendEntriesIn.Term {
+		} else if rs.pState.Log[i].Term != in.AppendEntriesIn.Term {
 			// TODO make persistent?
-			rs.pState.log = rs.pState.log[:i]
+			rs.pState.Log = rs.pState.Log[:i]
 			break
 		}
 	}
 	// 4. Append any new entries not already in the log.
 	for i := startIndex; i < len(in.AppendEntriesIn.Entries); i++ {
 		// TODO make persistent?
-		rs.pState.log[i] = in.AppendEntriesIn.Entries[i-startIndex]
+		rs.pState.Log[i] = in.AppendEntriesIn.Entries[i-startIndex]
 	}
 	// 5. If leaderCommit > commitIndex, set
 	// commitIndex = min(leaderCommit, index of last new entry)
@@ -149,19 +152,19 @@ func (rs *RaftServer) RequestVote(in raftRpc.RaftClientArgs,
 	out.RequestVoteOut.VoteGranted = false
 
 	// 1. Reply false if term < currentTerm
-	if in.RequestVoteIn.Term < rs.pState.currentTerm {
-		out.RequestVoteOut.Term = rs.pState.currentTerm
+	if in.RequestVoteIn.Term < rs.pState.CurrentTerm {
+		out.RequestVoteOut.Term = rs.pState.CurrentTerm
 		return nil
-	} else if in.RequestVoteIn.Term > rs.pState.currentTerm {
-		rs.pState.currentTerm = in.RequestVoteIn.Term
+	} else if in.RequestVoteIn.Term > rs.pState.CurrentTerm {
+		rs.pState.CurrentTerm = in.RequestVoteIn.Term
 		rs.state = "follower"
-		out.RequestVoteOut.Term = rs.pState.currentTerm
+		out.RequestVoteOut.Term = rs.pState.CurrentTerm
 	}
 	// 2. If votedFor is null or candidateId, and candidate's log
 	// is at least as up-to-date as receiver's log, grant vote.
-	if ((rs.pState.votedFor == -1) ||
-		(rs.pState.votedFor == in.RequestVoteIn.CandidateId)) &&
-		(len(rs.pState.log) <= in.RequestVoteIn.LastLogIndex) {
+	if ((rs.pState.VotedFor == -1) ||
+		(rs.pState.VotedFor == in.RequestVoteIn.CandidateId)) &&
+		(len(rs.pState.Log) <= in.RequestVoteIn.LastLogIndex) {
 		out.RequestVoteOut.VoteGranted = true
 	}
 	return nil
