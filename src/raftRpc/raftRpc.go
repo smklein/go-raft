@@ -30,7 +30,7 @@ type LogEntry struct {
 
 type AppendEntriesInput struct {
 	Term         int
-	LeaderId     int
+	LeaderId     string
 	PrevLogIndex int
 	PrevLogTerm  int
 	Entries      []LogEntry
@@ -43,7 +43,7 @@ type AppendEntriesOutput struct {
 
 type RequestVoteInput struct {
 	Term         int
-	CandidateId  int
+	CandidateId  string
 	LastLogIndex int
 	LastLogTerm  int
 }

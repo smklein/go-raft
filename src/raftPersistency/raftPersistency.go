@@ -12,35 +12,35 @@ import (
 /* Persistent raft state on all servers */
 type RaftPersistentState struct {
 	CurrentTerm int
-	VotedFor    int // -1 represents null.
+	VotedFor    string // -1 represents null.
 	Log         []raftRpc.LogEntry
 }
 
 func LoadState(server string) (*RaftPersistentState, error) {
 	path := getDataPath(server)
-    dataFile, err := os.Open(path)
-    if err != nil {
-    	return nil, err
-    }
-    dataDecoder := gob.NewDecoder(dataFile)
-    state := &RaftPersistentState{}
-    err = dataDecoder.Decode(&state)
-    if err != nil {
-    	return state, nil
-    } else {
-    	return state, dataFile.Close()
-    }
+	dataFile, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	dataDecoder := gob.NewDecoder(dataFile)
+	state := &RaftPersistentState{}
+	err = dataDecoder.Decode(&state)
+	if err != nil {
+		return state, nil
+	} else {
+		return state, dataFile.Close()
+	}
 }
 
 func (state *RaftPersistentState) SaveState(server string) error {
 	path := getDataPath(server)
-    dataFile, err := os.Create(path)
-    if err != nil {
-    	return err
-    }
-    dataEncoder := gob.NewEncoder(dataFile)
-    dataEncoder.Encode(state)
-    return dataFile.Close()
+	dataFile, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	dataEncoder := gob.NewEncoder(dataFile)
+	dataEncoder.Encode(state)
+	return dataFile.Close()
 }
 
 /**
