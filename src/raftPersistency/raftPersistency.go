@@ -11,9 +11,10 @@ import (
 
 /* Persistent raft state on all servers */
 type RaftPersistentState struct {
-	CurrentTerm int
-	VotedFor    string // -1 represents null.
-	Log         []raftRpc.LogEntry
+	CurrentTerm     int
+	VotedFor        string // -1 represents null.
+	Log             []raftRpc.LogEntry
+	StateMachineLog []raftRpc.LogEntry
 }
 
 func LoadState(server string) (*RaftPersistentState, error) {

@@ -89,6 +89,15 @@ func CreateRaftServer(serverName string) *RaftServer {
 // Function which follows Raft algorithm according to state.
 func (rs *RaftServer) RunStateMachine() {
 	for true {
+		// If commitIndex > lastApplied:
+		// Increment lastApplied, apply log[lastApplied] to state machine.
+		if rs.commitIndex > rs.lastApplied {
+			// TODO Make persistent
+			rs.pState.StateMachineLog[rs.lastApplied] =
+				rs.pState.Log[rs.lastApplied]
+			rs.lastApplied += 1
+		}
+
 		switch rs.state {
 		case "follower":
 			// Respond to RPCs from candidates + leaders
@@ -121,7 +130,9 @@ func (rs *RaftServer) RunStateMachine() {
 				args.RequestVoteIn.CandidateId = rs.serverName
 				args.RequestVoteIn.LastLogIndex = len(rs.pState.Log) - 1
 				if len(rs.pState.Log) > 0 {
-					args.RequestVoteIn.LastLogTerm = rs.pState.Log[len(rs.pState.Log)-1].Term
+					logIndex := len(rs.pState.Log) - 1
+					lastLogEntry := rs.pState.Log[logIndex]
+					args.RequestVoteIn.LastLogTerm = lastLogEntry.Term
 				} else {
 					args.RequestVoteIn.LastLogTerm = -1
 				}
@@ -157,7 +168,20 @@ func (rs *RaftServer) RunStateMachine() {
 			// (implicit in append entries)
 		case "leader":
 			// TODO
-			//
+			// TODO Heartbeats
+			// If command received from client: append entry to local log,
+			// respond after entry applied to state machine.
+			// TODO
+			// If last log index >= nextIndex for a follower, send
+			// AppendEntries RPC with log entries starting at nextIndex.
+			// TODO
+			// If successful: Update nextIndex and matchIndex for follower
+			// If AppendEntries fails because of log inconsistency,
+			// decrement nextIndex and retry.
+			// TODO
+			// If there exists an N such that N > commitIndex, a majority
+			// of matchIndex[i] >= N, and log[N].term == currentTerm,
+			// set commitIndex = N.
 			return
 		}
 	}
