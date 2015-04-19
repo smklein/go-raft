@@ -48,22 +48,59 @@ func (client *RaftClient) Commit(value string) error {
 }
 
 func (client *RaftClient) ReadLog(index int) (string, error) {
-	return "", nil
+	var finalErr error
+	for server, conn := range(client.connections) {
+		var value string
+		err := conn.Call("RaftServer.ReadLog", index, &value)
+		if err == nil {
+			return value, err
+		} else if server == client.leader {
+			finalErr = err
+		}
+	}
+	return "", finalErr
 }
 
 func (client *RaftClient) ReadLogAtServer(index int, server string) (string, error) {
-	return "", nil
+	conn := client.connections[server]
+	if conn == nil {
+		return "", errors.New("Invalid server name")
+	}
+	var value string
+	err := conn.Call("RaftServer.ReadLog", index, &value)
+	if err != nil {
+		return "", err
+	}
+	return value, err
 }
 
-func (client *RaftClient) ReadEntireLogAtServer(index int, server string) ([]string, error) {
-	return nil, nil
+func (client *RaftClient) ReadEntireLogAtServer(server string) ([]string, error) {
+	conn := client.connections[server]
+	if conn == nil {
+		return nil, errors.New("Invalid server name")
+	}
+	value := make([]string, 0)
+	err := conn.Call("RaftServer.ReadLog", nil, &value)
+	if err != nil {
+		return nil, err
+	}
+	return value, err
 }
 
 /*
 DEBUG function, asks if server is "leader", "follower", or "candidate"
 */
 func (client *RaftClient) DebugGetServerStatus(server string) (string, error) {
-	return "", nil
+	conn := client.connections[server]
+	if conn == nil {
+		return "", errors.New("Invalid server name")
+	}
+	var value string
+	err := conn.Call("RaftServer.GetServerStatus", nil, &value)
+	if err != nil {
+		return "", err
+	}
+	return value, err
 }
 
 func (client *RaftClient) DebugGetRaftLeader() (string, error) {

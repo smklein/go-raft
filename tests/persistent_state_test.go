@@ -6,10 +6,10 @@ import (
 	"testing"
 )
 
-func TestLeaderHandoff(t *testing.T) {
+func TestPersistentState(t *testing.T) {
 	testServer := "server1"
 	testTerm := 5
-	testVotedFor := -1
+	testVotedFor := "-1"
 	testCommand := "test command"
 	t.Logf("Persistent state test started")
 	raftPersistency.DeleteLog(testServer)
