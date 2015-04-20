@@ -2,26 +2,28 @@ package raftClient
 
 import (
 	"config"
-	"net/rpc"
 	"errors"
 	"fmt"
+	"net/rpc"
 	"strconv"
 )
 
 type RaftClient struct {
-	leader string
+	leader      string
 	connections map[string]*rpc.Client
 }
 
-func CreateRaftClient(cfg *config.Config) *RaftClient{
+func CreateRaftClient(cfg *config.Config) *RaftClient {
 	client := &RaftClient{}
 	client.connections = make(map[string]*rpc.Client)
-	for _, server := range(cfg.Servers) {
+	fmt.Println(cfg.Servers)
+	for _, server := range cfg.Servers {
 		if server.Name != "debugServer" {
 			addr := server.Address + ":" + strconv.Itoa(server.Port)
 			con, err := rpc.DialHTTP("tcp", addr)
 			if err != nil {
-				fmt.Println("Failed to connect with server <%s> when starting client", server.Name)
+				fmt.Printf("Failed to connect with server <%s> when starting client\n", server.Name)
+				fmt.Println(err)
 				return nil
 			}
 			client.connections[server.Name] = con
@@ -48,17 +50,19 @@ func (client *RaftClient) Commit(value string) error {
 }
 
 func (client *RaftClient) ReadLog(index int) (string, error) {
-	var finalErr error
-	for server, conn := range(client.connections) {
+	fmt.Println("[RAFT CLIENT] ReadLog called for index: ", index)
+	fmt.Println(client.connections)
+	var err error
+	for server, conn := range client.connections {
+		fmt.Println("[RAFT CLIENT] Observing server: ", server)
 		var value string
-		err := conn.Call("RaftServer.ReadLog", index, &value)
+		err = conn.Call("RaftServer.ReadLog", index, &value)
 		if err == nil {
+			fmt.Println("Read log at index: ", index, value)
 			return value, err
-		} else if server == client.leader {
-			finalErr = err
 		}
 	}
-	return "", finalErr
+	return "", err
 }
 
 func (client *RaftClient) ReadLogAtServer(index int, server string) (string, error) {
@@ -96,7 +100,7 @@ func (client *RaftClient) DebugGetServerStatus(server string) (string, error) {
 		return "", errors.New("Invalid server name")
 	}
 	var value string
-	err := conn.Call("RaftServer.GetServerStatus", nil, &value)
+	err := conn.Call("RaftServer.GetServerStatus", 0, &value)
 	if err != nil {
 		return "", err
 	}
@@ -105,7 +109,7 @@ func (client *RaftClient) DebugGetServerStatus(server string) (string, error) {
 
 func (client *RaftClient) DebugGetRaftLeader() (string, error) {
 	var leader string
-	for server, _ := range(client.connections) {
+	for server, _ := range client.connections {
 		status, err := client.DebugGetServerStatus(server)
 		if err != nil {
 			return "", err
@@ -126,5 +130,5 @@ func (client *RaftClient) DebugGetRaftLeader() (string, error) {
 }
 
 func (client *RaftClient) DebugCommitToServer(value, server string) error {
-	return nil
+	return errors.New("Unimplemented")
 }

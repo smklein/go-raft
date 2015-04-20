@@ -25,19 +25,20 @@ func TestBasicPersistentLog(t *testing.T) {
 
 	serverNames = cfg.GetServerNames()
 
-	err := raftPersistency.DeleteAllLogs() 
+	err := raftPersistency.DeleteAllLogs()
 	if err != nil {
 		t.Errorf("Could not clear log files: %s", err)
 		return
 	}
+	sm := &serverManagement.ServerManager{}
 
-	err = serverManagement.StartDebugServer()
+	err = sm.StartDebugServer()
 	if err != nil {
 		t.Errorf("Failure starting debug server: %s", err)
 		return
 	}
-	sm := serverManagement.StartAllServers()
-	if sm == nil {
+	err = sm.StartAllServers()
+	if err != nil {
 		t.Errorf("Failure starting raft servers")
 		return
 	}

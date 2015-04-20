@@ -12,8 +12,7 @@ import (
 )
 
 var (
-	DEBUG         = true
-	serverAddress = ""
+	DEBUG = true
 )
 
 type RaftClient struct {
@@ -33,7 +32,7 @@ type AppendEntriesInput struct {
 	LeaderId     string
 	PrevLogIndex int
 	PrevLogTerm  int
-	Entries      []LogEntry
+	Entries      []*LogEntry
 	LeaderCommit int
 }
 type AppendEntriesOutput struct {
@@ -62,41 +61,49 @@ type RaftClientReply struct {
 	RequestVoteOut   *RequestVoteOutput
 }
 
-func DialHTTP(network, address string) (*RaftClient, error) {
-	fmt.Println("Dial HTTP called")
+func DialHTTP(network, address string, in, out string) (*RaftClient, error) {
+	fmt.Println("\t[RAFT RPC] Dial HTTP called")
 	c, err := rpc.DialHTTP(network, address)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("Successfully dialed: ", address)
+	fmt.Println("\t[RAFT RPC] Successfully dialed: ", address)
 
 	var d *rpc.Client
 	if DEBUG {
 		var cf config.Config
+		var serverAddress string
 		config.LoadConfig(&cf)
 		for _, s := range cf.Servers {
 			if s.Name == "debugServer" {
 				serverAddress = s.Address + ":" + strconv.Itoa(s.Port)
 			}
 		}
-		fmt.Println("Config: ", cf)
 
 		d, err = rpc.DialHTTP(network, serverAddress)
 		if err != nil {
+			fmt.Println(err)
 			// If DEBUG is on, we NEED the ability to contact the debug server.
 			os.Exit(-1)
 		}
 	}
-	return &RaftClient{client: c, debugClient: d}, err
+	// TODO Get rule is failing because parts of "RaftClient" are not
+	// initialized. Fix this tomorrow pls. BUG BUG BUG BUG
+	return &RaftClient{client: c,
+		debugClient:  d,
+		inputServer:  in,
+		outputServer: out}, err
 }
 
-func (rc *RaftClient) Call(serviceMethod string, args RaftClientArgs, reply *RaftClientReply) error {
+func (rc *RaftClient) Call(serviceMethod string, args RaftClientArgs,
+	reply *RaftClientReply) error {
 	if DEBUG {
 		sc := debugRpcServer.ServerConnection{rc.inputServer, rc.outputServer}
 		var behavior debugRpcServer.Behavior
 		err := rc.debugClient.Call("Check.GetRule", sc, &behavior)
 		if err != nil {
 			// If DEBUG is on, we NEED the ability to contact the debug server.
+			fmt.Println(err)
 			os.Exit(-1)
 		}
 		if behavior.Drop {
@@ -104,7 +111,8 @@ func (rc *RaftClient) Call(serviceMethod string, args RaftClientArgs, reply *Raf
 			return errors.New("Message dropped by RPC layer")
 		} else if behavior.Delay {
 			fmt.Println("Applying DELAY rule")
-			time.Sleep(2000 * time.Millisecond) // TODO Add ability to wait for different times.
+			time.Sleep(2000 * time.Millisecond)
+			// TODO Add ability to wait for different times.
 		}
 	}
 	return rc.client.Call(serviceMethod, args, reply)

@@ -5,3 +5,5 @@ To install, run "install.sh".
 
 To set your GOPATH, run "source sourceme.sh" from the same directory as
 "sourceme.sh".
+
+To compile the runners, run "build.sh".
