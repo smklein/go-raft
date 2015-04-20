@@ -30,6 +30,7 @@ func TestBasicLeader(t *testing.T) {
 		return
 	}
 	sm := &serverManagement.ServerManager{}
+	defer sm.KillAllServers()
 	err = sm.StartDebugServer()
 	if err != nil {
 		t.Errorf("Failure starting debug server: %s", err)
@@ -38,7 +39,6 @@ func TestBasicLeader(t *testing.T) {
 	err = sm.StartAllServers()
 	if err != nil {
 		t.Errorf("Failure starting raft servers: %s", err)
-		sm.KillAllServers()
 		return
 	}
 	t.Logf("All servers started")
@@ -48,16 +48,14 @@ func TestBasicLeader(t *testing.T) {
 	client := raftClient.CreateRaftClient(&cfg)
 	if client == nil {
 		t.Errorf("Could not start client")
-		sm.KillAllServers()
 		return
 	}
 	time.Sleep(100 * time.Millisecond)
 
 	// Verify that the log has been updated
-	_, err = client.ReadLog(0)
+	_, err = client.ReadLog(1)
 	if err == nil {
 		t.Errorf("Log reading failure -- expected empty log.")
-		sm.KillAllServers()
 		return
 	}
 
@@ -68,7 +66,6 @@ func TestBasicLeader(t *testing.T) {
 		serverState, err := client.DebugGetServerStatus(server)
 		if err != nil {
 			t.Errorf("Server status failure at server <%s>: %s", server, err)
-			sm.KillAllServers()
 			return
 		}
 		if serverState == "leader" {
@@ -77,27 +74,22 @@ func TestBasicLeader(t *testing.T) {
 			numFollowers += 1
 		} else if serverState == "candidate" {
 			t.Errorf("Invalid server state: %s, ", serverState)
-			sm.KillAllServers()
 			return
 		} else {
 			t.Errorf("Invalid server state: %s, ", serverState)
-			sm.KillAllServers()
 			return
 		}
 	}
 
 	if numLeaders != 1 {
 		t.Errorf("Expected one leader, got %d leaders", numLeaders)
-		sm.KillAllServers()
 		return
 	}
 	if numFollowers != len(serverNames)-1 {
 		t.Errorf("Expected %d followers, got %d followers", len(serverNames)-1,
 			numFollowers)
-		sm.KillAllServers()
 		return
 	}
 	t.Logf("Test passed")
-	sm.KillAllServers()
 	return
 }

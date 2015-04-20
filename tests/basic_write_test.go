@@ -22,26 +22,29 @@ func TestBasicWrite(t *testing.T) {
 
 	serverNames = cfg.GetServerNames()
 
-	err := raftPersistency.DeleteAllLogs() 
+	err := raftPersistency.DeleteAllLogs()
 	if err != nil {
 		t.Errorf("Could not clear log files: %s", err)
 		return
 	}
 
-	err = serverManagement.StartDebugServer()
+	sm := &serverManagement.ServerManager{}
+	defer sm.KillAllServers()
+	err = sm.StartDebugServer()
 	if err != nil {
 		t.Errorf("Failure starting debug server: %s", err)
 		return
 	}
-	sm := serverManagement.StartAllServers()
-	if sm == nil {
+	err = sm.StartAllServers()
+	if err != nil {
 		t.Errorf("Failure starting raft servers")
 		return
 	}
 	t.Logf("All servers started")
+	time.Sleep(5000 * time.Millisecond)
 
 	// Initialize client
-	client := raftClient.RaftClient{}
+	client := raftClient.CreateRaftClient(&cfg)
 
 	// Commit a single value
 	err = client.Commit(testValue)
@@ -51,16 +54,15 @@ func TestBasicWrite(t *testing.T) {
 	}
 	t.Logf("Value written")
 
-	// Sleep for 100 ms
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(1000 * time.Millisecond)
 
 	// Verify that the log has been updated
-	readValue, err := client.ReadLog(0)
+	readValue, err := client.ReadLog(1)
 	if err != nil {
 		t.Errorf("Log reading failure: %s", err)
 		return
 	}
-	t.Logf("Value read")
+	t.Logf("Value read correctly from generic ReadLog.")
 
 	if readValue != testValue {
 		t.Errorf("Incorrect value read - testValue: <%s> - readValue: <%s>", testValue, readValue)
@@ -69,7 +71,7 @@ func TestBasicWrite(t *testing.T) {
 
 	// Verify that the log has been properly replicated
 	for _, server := range serverNames {
-		readValue, err = client.ReadLogAtServer(0, server)
+		readValue, err = client.ReadLogAtServer(1, server)
 		if err != nil {
 			t.Errorf("Log reading failure at server <%s>: %s", server, err)
 			return
@@ -78,8 +80,14 @@ func TestBasicWrite(t *testing.T) {
 			t.Errorf("Incorrect value read at server <%s> - testValue: <%s> - readValue: <%s>", server, testValue, readValue)
 			return
 		}
+		t.Logf("Server <%s> read the value correctly\n", server)
 	}
-	t.Logf("Test passed")
+	readValue, err = client.ReadLog(2)
+	if err == nil {
+		t.Errorf("Reading index at 2 expected error, got %s", readValue)
+		return
+	}
+	t.Logf("Entry 2 is still empty")
 
-	sm.KillAllServers()
+	t.Logf("Test passed")
 }

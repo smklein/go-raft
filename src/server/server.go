@@ -36,7 +36,7 @@ type RaftServer struct {
 	nextIndex    map[string]int
 	matchIndex   map[string]int
 	clientInput  chan string
-	clientOutput chan *ClientResponse
+	clientOutput chan string
 	rpcLock      *sync.Mutex
 }
 
@@ -72,12 +72,13 @@ func CreateRaftServer(serverName string) *RaftServer {
 	rs.pState = &raftPersistency.RaftPersistentState{}
 	rs.pState.VotedFor = ""
 	rs.pState.Log = []*raftRpc.LogEntry{&raftRpc.LogEntry{Command: "", Term: 0}}
+	rs.pState.StateMachineLog = []*raftRpc.LogEntry{&raftRpc.LogEntry{Command: "", Term: 0}}
 	rs.serverName = serverName
 	rs.state = "follower"
 	rs.commitIndex = 0
 	rs.lastApplied = 0
 	rs.clientInput = make(chan string)
-	rs.clientOutput = make(chan *ClientResponse)
+	rs.clientOutput = make(chan string)
 	rs.rpcLock = &sync.Mutex{}
 	fmt.Printf("[SERVER] Server %s is about to register\n", serverName)
 	rpc.Register(rs)
@@ -119,11 +120,13 @@ func (rs *RaftServer) runStateMachine() {
 	for true {
 		// If commitIndex > lastApplied:
 		// Increment lastApplied, apply log[lastApplied] to state machine.
-		if rs.commitIndex > rs.lastApplied {
+		for rs.commitIndex > rs.lastApplied {
 			// TODO Make persistent
-			rs.pState.StateMachineLog[rs.lastApplied] =
-				rs.pState.Log[rs.lastApplied]
 			rs.lastApplied += 1
+			rs.pState.StateMachineLog = append(rs.pState.StateMachineLog,
+				rs.pState.Log[rs.lastApplied])
+			fmt.Printf("[%s] Just applied %s to state machine\n",
+				rs.serverName, rs.pState.Log[rs.lastApplied].Command)
 		}
 
 		switch rs.state {
@@ -218,12 +221,15 @@ func (rs *RaftServer) runStateMachine() {
 			case clientIn := <-rs.clientInput:
 				// If command received from client: append entry to local log,
 				// respond after entry applied to state machine.
+				fmt.Printf("[%s] Leader trying to commit value: %s\n",
+					rs.serverName, clientIn)
 				entry := &raftRpc.LogEntry{}
 				entry.Command = clientIn
 				entry.Term = rs.pState.CurrentTerm
-				rs.pState.Log[len(rs.pState.Log)-1] = entry
-				// TODO Respond to client.
+				rs.pState.Log = append(rs.pState.Log, entry)
+				go rs.respondToClient(len(rs.pState.Log))
 			case <-time.After(time.Duration(15) * time.Millisecond):
+				fmt.Printf("[%s] Leader outputting heartbeat\n", rs.serverName)
 				if !rs.heartBeat() {
 					rs.state = "follower"
 					break
@@ -253,11 +259,21 @@ func (rs *RaftServer) runStateMachine() {
 					}
 				}
 				if numReplicated >= majority {
+					fmt.Printf("[%s] Leader has new commitIndex: %d\n",
+						rs.serverName, n)
 					rs.commitIndex = n
 				}
 			}
 		}
 	}
+}
+
+func (rs *RaftServer) respondToClient(entryNum int) {
+	for len(rs.pState.StateMachineLog) < entryNum {
+		time.Sleep(50 * time.Millisecond)
+	}
+	fmt.Printf("[%s] Responding to client for index %d\n", rs.serverName, entryNum-1)
+	rs.clientOutput <- rs.pState.StateMachineLog[entryNum-1].Command
 }
 
 /*
@@ -271,14 +287,14 @@ returns
 func (rs *RaftServer) sendAppendEntriesRPC(s string,
 	entries []*raftRpc.LogEntry) int {
 	c := rs.serverMap[s]
-	fmt.Println("Sending append entries RPC to ", s)
+	fmt.Printf("Sending append entries RPC to %s\n", s)
 	var args raftRpc.RaftClientArgs
 	var reply raftRpc.RaftClientReply
 	args.AppendEntriesIn = &raftRpc.AppendEntriesInput{}
 	args.AppendEntriesIn.Term = rs.pState.CurrentTerm
 	args.AppendEntriesIn.LeaderId = rs.serverName
-	args.AppendEntriesIn.PrevLogIndex = len(rs.pState.Log) - 1
-	args.AppendEntriesIn.PrevLogTerm = rs.pState.Log[rs.commitIndex].Term
+	args.AppendEntriesIn.PrevLogIndex = len(rs.pState.Log) - 2
+	args.AppendEntriesIn.PrevLogTerm = rs.pState.Log[len(rs.pState.Log)-2].Term
 	args.AppendEntriesIn.Entries = entries
 	args.AppendEntriesIn.LeaderCommit = rs.commitIndex
 	err := c.Call("RaftServer.AppendEntries", args, &reply)
@@ -339,25 +355,21 @@ func (rs *RaftServer) heartBeat() bool {
 // TODO Add ability to call this function in client.
 // TODO Add other RPCs needed by client.
 func (rs *RaftServer) Commit(in string, out *string) error {
-	fmt.Println("[RAFT SERVER] Commit Called")
+	fmt.Printf("[%s] Commit Called\n", rs.serverName)
 	rs.clientInput <- in
-	output := <-rs.clientOutput
-	if output.err != nil {
-		return output.err
-	} else {
-		*out = "Committed"
-	}
+	*out = <-rs.clientOutput
 	return nil
 }
 
 func (rs *RaftServer) ReadLog(index int, value *string) error {
-	fmt.Println("[RAFT SERVER] ReadLog Called")
-	if len(rs.pState.StateMachineLog) < index {
+	fmt.Printf("[%s] ReadLog Called, index: %d\n", rs.serverName, index)
+	if len(rs.pState.StateMachineLog) > index {
 		*value = rs.pState.StateMachineLog[index].Command
 		fmt.Println("[RAFT SERVER] ReadLog returning: ", *value)
 		return nil
 	} else {
-		fmt.Println("[RAFT SERVER] ReadLog error")
+		fmt.Printf("[%s] ReadLog error - SML len: %d\n",
+			rs.serverName, len(rs.pState.StateMachineLog))
 		return errors.New("Index not applied to state machine")
 	}
 }
@@ -411,30 +423,37 @@ func (rs *RaftServer) AppendEntries(in raftRpc.RaftClientArgs,
 	startIndex := in.AppendEntriesIn.PrevLogIndex + 1
 	for i := startIndex; i < startIndex+len(in.AppendEntriesIn.Entries); i++ {
 		fmt.Printf("[%s][AE] Checking conflicts at index %d\n", rs.serverName, i)
-		if len(rs.pState.Log) < i {
+		if len(rs.pState.Log)-1 < i {
+			fmt.Printf("[%s][AE] End of conflicts at index %d\n", rs.serverName, i)
 			break
 		} else if rs.pState.Log[i].Term != in.AppendEntriesIn.Term {
+			fmt.Printf("[%s][AE] Cutting log size to: %d\n", rs.serverName, i)
 			// TODO make persistent?
 			rs.pState.Log = rs.pState.Log[:i]
 			break
 		}
 	}
 	// 4. Append any new entries not already in the log.
-	for i := startIndex; i < len(in.AppendEntriesIn.Entries); i++ {
+	for i := startIndex; i < startIndex+len(in.AppendEntriesIn.Entries); i++ {
 		fmt.Printf("[%s][AE] Adding entry at index %d\n", rs.serverName, i)
 		// TODO make persistent?
-		rs.pState.Log[i] = in.AppendEntriesIn.Entries[i-startIndex]
+		rs.pState.Log = append(rs.pState.Log, in.AppendEntriesIn.Entries[i-startIndex])
+		for _, e := range rs.pState.Log {
+			fmt.Println(e.Command)
+		}
 	}
 	// 5. If leaderCommit > commitIndex, set
 	// commitIndex = min(leaderCommit, index of last new entry)
 	lastIndex := startIndex + len(in.AppendEntriesIn.Entries) - 1
 	if in.AppendEntriesIn.LeaderCommit > rs.commitIndex {
-		fmt.Printf("[%s][AE] Updating leadercommit. \n", rs.serverName)
+		fmt.Printf("[%s][AE] Updating leadercommit. LC: %d. LI: %d.\n",
+			rs.serverName, in.AppendEntriesIn.LeaderCommit, lastIndex)
 		if in.AppendEntriesIn.LeaderCommit <= lastIndex {
 			rs.commitIndex = in.AppendEntriesIn.LeaderCommit
 		} else {
 			rs.commitIndex = lastIndex
 		}
+		fmt.Printf("[%s][AE] Commit index: %d \n", rs.serverName, rs.commitIndex)
 	}
 	rs.attemptCandidate = false
 	out.AppendEntriesOut.Success = true
@@ -462,6 +481,7 @@ func (rs *RaftServer) RequestVote(in raftRpc.RaftClientArgs,
 	} else if in.RequestVoteIn.Term > rs.pState.CurrentTerm {
 		fmt.Printf("[%s][RV] This term is large!\n", rs.serverName)
 		rs.pState.CurrentTerm = in.RequestVoteIn.Term
+		rs.pState.VotedFor = ""
 		rs.state = "follower"
 		out.RequestVoteOut.Term = rs.pState.CurrentTerm
 	}
