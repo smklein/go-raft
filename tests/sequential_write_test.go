@@ -12,7 +12,7 @@ import (
 func TestSequentialWrite(t *testing.T) {
 	var cfg config.Config
 	var serverNames []string
-	var testValues = []string{"", "", "", "", ""}
+	var testValues = []string{"a", "b", "c", "d", "e"}
 
 	t.Logf("Sequential write test started")
 
@@ -22,29 +22,32 @@ func TestSequentialWrite(t *testing.T) {
 
 	serverNames = cfg.GetServerNames()
 
-	err := raftPersistency.DeleteAllLogs() 
+	err := raftPersistency.DeleteAllLogs()
 	if err != nil {
 		t.Errorf("Could not clear log files: %s", err)
 		return
 	}
 
-	err = serverManagement.StartDebugServer()
+	sm := &serverManagement.ServerManager{}
+	defer sm.KillAllServers()
+	err = sm.StartDebugServer()
 	if err != nil {
 		t.Errorf("Failure starting debug server: %s", err)
 		return
 	}
-	sm := serverManagement.StartAllServers()
-	if sm == nil {
+	err = sm.StartAllServers()
+	if err != nil {
 		t.Errorf("Failure starting raft servers")
 		return
 	}
 	t.Logf("All servers started")
+	time.Sleep(5000 * time.Millisecond)
 
 	// Initialize client
-	client := raftClient.RaftClient{}
+	client := raftClient.CreateRaftClient(&cfg)
 
 	// Commit the sequence of values value
-	for i, testVal := range(testValues) {
+	for i, testVal := range testValues {
 		err = client.Commit(testVal)
 		if err != nil {
 			t.Errorf("Commit failure on string #%d <%s>: %s", i, testVal, err)
@@ -53,12 +56,11 @@ func TestSequentialWrite(t *testing.T) {
 	}
 	t.Logf("Values written")
 
-	// Sleep for 100 ms
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(1000 * time.Millisecond)
 
 	// Verify that the log has been updated
-	for i, testVal := range(testValues) {
-		readValue, err := client.ReadLog(i)
+	for i, testVal := range testValues {
+		readValue, err := client.ReadLog(i + 1)
 		if err != nil {
 			t.Errorf("Log reading failure on string #%d <%s>: %s", i, testVal, err)
 			return
@@ -71,9 +73,9 @@ func TestSequentialWrite(t *testing.T) {
 	t.Logf("Values read and verified in system")
 
 	// Verify that the log has been properly replicated
-	for _, server := range(serverNames) {
-		for i, testVal := range(testValues) {
-			readValue, err := client.ReadLogAtServer(i, server)
+	for _, server := range serverNames {
+		for i, testVal := range testValues {
+			readValue, err := client.ReadLogAtServer(i+1, server)
 			if err != nil {
 				t.Errorf("Log reading for string #%d failure at server <%s>: %s", i, server, err)
 				return

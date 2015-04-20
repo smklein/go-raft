@@ -36,7 +36,7 @@ type RaftServer struct {
 	nextIndex    map[string]int
 	matchIndex   map[string]int
 	clientInput  chan string
-	clientOutput chan string
+	clientOutput chan int
 	rpcLock      *sync.Mutex
 }
 
@@ -78,7 +78,7 @@ func CreateRaftServer(serverName string) *RaftServer {
 	rs.commitIndex = 0
 	rs.lastApplied = 0
 	rs.clientInput = make(chan string)
-	rs.clientOutput = make(chan string)
+	rs.clientOutput = make(chan int)
 	rs.rpcLock = &sync.Mutex{}
 	fmt.Printf("[SERVER] Server %s is about to register\n", serverName)
 	rpc.Register(rs)
@@ -227,7 +227,7 @@ func (rs *RaftServer) runStateMachine() {
 				entry.Command = clientIn
 				entry.Term = rs.pState.CurrentTerm
 				rs.pState.Log = append(rs.pState.Log, entry)
-				go rs.respondToClient(len(rs.pState.Log))
+				rs.clientOutput <- len(rs.pState.Log)
 			case <-time.After(time.Duration(15) * time.Millisecond):
 				fmt.Printf("[%s] Leader outputting heartbeat\n", rs.serverName)
 				if !rs.heartBeat() {
@@ -266,14 +266,6 @@ func (rs *RaftServer) runStateMachine() {
 			}
 		}
 	}
-}
-
-func (rs *RaftServer) respondToClient(entryNum int) {
-	for len(rs.pState.StateMachineLog) < entryNum {
-		time.Sleep(50 * time.Millisecond)
-	}
-	fmt.Printf("[%s] Responding to client for index %d\n", rs.serverName, entryNum-1)
-	rs.clientOutput <- rs.pState.StateMachineLog[entryNum-1].Command
 }
 
 /*
@@ -352,12 +344,15 @@ func (rs *RaftServer) heartBeat() bool {
 	return true
 }
 
-// TODO Add ability to call this function in client.
-// TODO Add other RPCs needed by client.
 func (rs *RaftServer) Commit(in string, out *string) error {
 	fmt.Printf("[%s] Commit Called\n", rs.serverName)
 	rs.clientInput <- in
-	*out = <-rs.clientOutput
+	entryNum := <-rs.clientOutput
+	for len(rs.pState.StateMachineLog) < entryNum {
+		time.Sleep(50 * time.Millisecond)
+	}
+	fmt.Printf("[%s] Responding to client for index %d\n", rs.serverName, entryNum-1)
+	*out = rs.pState.StateMachineLog[entryNum-1].Command
 	return nil
 }
 
