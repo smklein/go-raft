@@ -9,9 +9,10 @@ import (
 	"time"
 )
 
-func commitOneValue(t * testing.T, value string, resultChan chan bool) {
+func commitOneValue(t *testing.T, value string, resultChan chan bool,
+	cfg *config.Config) {
 	// Initialize client
-	client := raftClient.RaftClient{}
+	client := raftClient.CreateRaftClient(cfg)
 
 	// Commit a single value
 	err := client.Commit(value)
@@ -26,9 +27,9 @@ func commitOneValue(t * testing.T, value string, resultChan chan bool) {
 func TestConcurrentWrite(t *testing.T) {
 	var cfg config.Config
 	var serverNames []string
-	var testValues = []string{"", "", "", "", ""}
+	var testValues = []string{"a", "b", "c", "d", "e"}
 	var numClients = len(testValues)
-	var readValues = make([]string, numClients)
+	var readValues []string
 
 	t.Logf("Basic write test started")
 
@@ -38,34 +39,37 @@ func TestConcurrentWrite(t *testing.T) {
 
 	serverNames = cfg.GetServerNames()
 
-	err := raftPersistency.DeleteAllLogs() 
+	err := raftPersistency.DeleteAllLogs()
 	if err != nil {
 		t.Errorf("Could not clear log files: %s", err)
 		return
 	}
 
-	err = serverManagement.StartDebugServer()
+	sm := &serverManagement.ServerManager{}
+	defer sm.KillAllServers()
+	err = sm.StartDebugServer()
 	if err != nil {
 		t.Errorf("Failure starting debug server: %s", err)
 		return
 	}
-	sm := serverManagement.StartAllServers()
-	if sm == nil {
+	err = sm.StartAllServers()
+	if err != nil {
 		t.Errorf("Failure starting raft servers")
 		return
 	}
 	t.Logf("All servers started")
+	time.Sleep(5000 * time.Millisecond)
 
 	resultChan := make(chan bool, numClients)
-	for _, testVal := range(testValues) {
-		go commitOneValue(t, testVal, resultChan)
+	for _, testVal := range testValues {
+		go commitOneValue(t, testVal, resultChan, &cfg)
 	}
 
 	// Initialize client
-	client := raftClient.RaftClient{}
+	client := raftClient.CreateRaftClient(&cfg)
 
-	for i := 0; i < numClients; i++ {
-		if <-resultChan == false {
+	for i := 1; i <= numClients; i++ {
+		if res := <-resultChan; res == false {
 			t.Errorf("Client write failure, terminating test")
 			return
 		} else {
@@ -77,16 +81,16 @@ func TestConcurrentWrite(t *testing.T) {
 			readValues = append(readValues, readValue)
 		}
 	}
-	
+
 	t.Logf("Values written and read from system")
 
-	// Sleep for 100 ms
-	time.Sleep(100 * time.Millisecond)
+	// Sleep for 500 ms
+	time.Sleep(500 * time.Millisecond)
 
 	// Verify that the log has been properly replicated
-	for _, server := range(serverNames) {
-		for i, testVal := range(readValues) {
-			readValue, err := client.ReadLogAtServer(i, server)
+	for _, server := range serverNames {
+		for i, testVal := range readValues {
+			readValue, err := client.ReadLogAtServer(i+1, server)
 			if err != nil {
 				t.Errorf("Log reading for string #%d failure at server <%s>: %s", i, server, err)
 				return
@@ -99,5 +103,4 @@ func TestConcurrentWrite(t *testing.T) {
 	}
 	t.Logf("Test passed")
 
-	sm.KillAllServers()
 }

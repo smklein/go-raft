@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	fmt.Fprintf(os.Stderr, "[MAIN] Server Started: %s\n", os.Args[1])
+	fmt.Fprintf(os.Stdout, "[MAIN] Server Started: %s\n", os.Args[1])
 
 	s := server.CreateRaftServer(os.Args[1])
 
