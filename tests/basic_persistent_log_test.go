@@ -30,8 +30,9 @@ func TestBasicPersistentLog(t *testing.T) {
 		t.Errorf("Could not clear log files: %s", err)
 		return
 	}
-	sm := &serverManagement.ServerManager{}
 
+	sm := &serverManagement.ServerManager{}
+	defer sm.KillAllServers()
 	err = sm.StartDebugServer()
 	if err != nil {
 		t.Errorf("Failure starting debug server: %s", err)
@@ -43,9 +44,10 @@ func TestBasicPersistentLog(t *testing.T) {
 		return
 	}
 	t.Logf("All servers started")
+	time.Sleep(5000 * time.Millisecond)
 
 	// Initialize client
-	client := raftClient.RaftClient{}
+	client := raftClient.CreateRaftClient(&cfg)
 
 	// Commit a single value
 	err = client.Commit(testValue)
@@ -55,11 +57,10 @@ func TestBasicPersistentLog(t *testing.T) {
 	}
 	t.Logf("Value written")
 
-	// Sleep for 100 ms
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(1000 * time.Millisecond)
 
 	// Verify that the log has been updated
-	readValue, err := client.ReadLog(0)
+	readValue, err := client.ReadLog(1)
 	if err != nil {
 		t.Errorf("Log reading failure: %s", err)
 		return
@@ -73,7 +74,7 @@ func TestBasicPersistentLog(t *testing.T) {
 
 	// Verify that the log has been properly replicated
 	for _, server := range serverNames {
-		readValue, err = client.ReadLogAtServer(0, server)
+		readValue, err = client.ReadLogAtServer(1, server)
 		if err != nil {
 			t.Errorf("Log reading failure at server <%s>: %s", server, err)
 			return
@@ -86,11 +87,19 @@ func TestBasicPersistentLog(t *testing.T) {
 
 	sm.KillAllServers()
 	time.Sleep(100 * time.Millisecond)
-	sm.RestartAllServers()
-	time.Sleep(100 * time.Millisecond)
+	err = sm.StartDebugServer()
+	if err != nil {
+		panic(err)
+	}
+	err = sm.StartAllServers()
+	if err != nil {
+		panic(err)
+	}
+	time.Sleep(500 * time.Millisecond)
 
+	client = raftClient.CreateRaftClient(&cfg)
 	// Verify that the log has been updated
-	readValue, err = client.ReadLog(0)
+	readValue, err = client.ReadLog(1)
 	if err != nil {
 		t.Errorf("(restarted) Log reading failure: %s", err)
 		return
@@ -104,7 +113,7 @@ func TestBasicPersistentLog(t *testing.T) {
 
 	// Verify that the log has been properly replicated
 	for _, server := range serverNames {
-		readValue, err = client.ReadLogAtServer(0, server)
+		readValue, err = client.ReadLogAtServer(1, server)
 		if err != nil {
 			t.Errorf("(restarted) Log reading failure at server <%s>: %s", server, err)
 			return
@@ -116,5 +125,4 @@ func TestBasicPersistentLog(t *testing.T) {
 	}
 
 	t.Logf("Test passed")
-	sm.KillAllServers()
 }

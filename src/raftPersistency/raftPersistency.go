@@ -12,13 +12,13 @@ import (
 /* Persistent raft state on all servers */
 type RaftPersistentState struct {
 	CurrentTerm     int
-	VotedFor        string // -1 represents null.
+	VotedFor        string // "" represents null.
 	Log             []*raftRpc.LogEntry
 	StateMachineLog []*raftRpc.LogEntry
 }
 
 func LoadState(server string) (*RaftPersistentState, error) {
-	path := getDataPath(server)
+	path := GetDataPath(server)
 	dataFile, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -34,7 +34,7 @@ func LoadState(server string) (*RaftPersistentState, error) {
 }
 
 func (state *RaftPersistentState) SaveState(server string) error {
-	path := getDataPath(server)
+	path := GetDataPath(server)
 	dataFile, err := os.Create(path)
 	if err != nil {
 		return err
@@ -44,16 +44,16 @@ func (state *RaftPersistentState) SaveState(server string) error {
 	return dataFile.Close()
 }
 
-/**
+/*
 THESE FUNCTIONS ARE NOT TO BE RUN WHILE A SERVER IS ACTIVE.
 */
 
-func getDataPath(serverName string) string {
+func GetDataPath(serverName string) string {
 	return os.Getenv("GOPATH") + "data/" + serverName
 }
 
 func DeleteLog(serverName string) error {
-	return os.Truncate(getDataPath(serverName), 0)
+	return os.Truncate(GetDataPath(serverName), 0)
 }
 
 func DeleteAllLogs() error {

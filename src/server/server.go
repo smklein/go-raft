@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/rpc"
+	"os"
 	"raftPersistency"
 	"raftRpc"
 	"strconv"
@@ -50,6 +51,14 @@ type RaftServerOutput struct {
 	placeholder string
 }
 
+func (rs *RaftServer) saveState() {
+	err := rs.pState.SaveState(rs.serverName)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(-1)
+	}
+}
+
 /* Function to initialize, start up raft server */
 func CreateRaftServer(serverName string) *RaftServer {
 	fmt.Printf("[SERVER] Creating server %s\n", serverName)
@@ -68,12 +77,23 @@ func CreateRaftServer(serverName string) *RaftServer {
 		fmt.Println("[SERVER] [ERROR] Port == 0")
 		return nil
 	}
-	// TODO Store/Load!
-	rs.pState = &raftPersistency.RaftPersistentState{}
-	rs.pState.VotedFor = ""
-	rs.pState.Log = []*raftRpc.LogEntry{&raftRpc.LogEntry{Command: "", Term: 0}}
-	rs.pState.StateMachineLog = []*raftRpc.LogEntry{&raftRpc.LogEntry{Command: "", Term: 0}}
 	rs.serverName = serverName
+	datapath := raftPersistency.GetDataPath(rs.serverName)
+	if fi, err := os.Lstat(datapath); err == nil && fi.Size() == 0 {
+		fmt.Println("[SERVER] NEW DATA")
+		rs.pState = &raftPersistency.RaftPersistentState{}
+		rs.pState.VotedFor = ""
+		rs.pState.Log = []*raftRpc.LogEntry{&raftRpc.LogEntry{Command: "", Term: 0}}
+		rs.pState.StateMachineLog = []*raftRpc.LogEntry{&raftRpc.LogEntry{Command: "", Term: 0}}
+	} else {
+		fmt.Println("[SERVER] Loading data, file size: ", fi.Size())
+		rs.pState, err = raftPersistency.LoadState(rs.serverName)
+		if err != nil {
+			fmt.Println("[SERVER] Could not load state")
+			return nil
+		}
+	}
+
 	rs.state = "follower"
 	rs.commitIndex = 0
 	rs.lastApplied = 0
@@ -91,7 +111,6 @@ func CreateRaftServer(serverName string) *RaftServer {
 	}
 	fmt.Printf("[SERVER] Server %s is listening!\n", serverName)
 	go http.Serve(l, nil)
-	// TODO Maybe sleep here? We need all servers to come online together.
 	rs.runStateMachine()
 	return rs
 }
@@ -125,6 +144,7 @@ func (rs *RaftServer) runStateMachine() {
 			rs.lastApplied += 1
 			rs.pState.StateMachineLog = append(rs.pState.StateMachineLog,
 				rs.pState.Log[rs.lastApplied])
+			rs.saveState()
 			fmt.Printf("[%s] Just applied %s to state machine\n",
 				rs.serverName, rs.pState.Log[rs.lastApplied].Command)
 		}
@@ -138,8 +158,10 @@ func (rs *RaftServer) runStateMachine() {
 			// vote to candidate: convert to candidate.
 			fmt.Printf("%s : FOLLOWER\n", rs.serverName)
 			rs.attemptCandidate = true
-			msToWait := 250 + rand.Intn(500)
-			time.Sleep(time.Duration(msToWait) * time.Millisecond)
+			rand.Seed(time.Now().UTC().UnixNano())
+			msToWait := 250 + rand.Intn(250)
+			fmt.Println("(follower --> candidate) Waiting: ", msToWait)
+			<-time.After(time.Duration(msToWait) * time.Millisecond)
 			if rs.attemptCandidate {
 				rs.state = "candidate"
 			}
@@ -150,6 +172,7 @@ func (rs *RaftServer) runStateMachine() {
 			rs.pState.CurrentTerm += 1
 			// Vote for self
 			rs.pState.VotedFor = rs.serverName
+			rs.saveState()
 			numVotes := 1 // We voted for ourselves!
 			// Send requestVote RPCs to all other servers
 			for s, c := range rs.serverMap {
@@ -180,6 +203,7 @@ func (rs *RaftServer) runStateMachine() {
 						} else if reply.RequestVoteOut.Term > rs.pState.CurrentTerm {
 							fmt.Printf("[SERVER] For %s, from %s, vote denied. Requestor is now follower. \n", rs.serverName, s)
 							rs.pState.CurrentTerm = reply.RequestVoteOut.Term
+							rs.saveState()
 							rs.state = "follower"
 							break
 						}
@@ -206,8 +230,10 @@ func (rs *RaftServer) runStateMachine() {
 			} else if rs.state == "candidate" {
 				fmt.Printf("[%s] Candidate not elected leader -- backoff.\n", rs.serverName)
 				// Backoff for a bit, then try again.
-				msToWait := 250 + rand.Intn(500)
-				time.Sleep(time.Duration(msToWait) * time.Millisecond)
+				rand.Seed(time.Now().UTC().UnixNano())
+				msToWait := 250 + rand.Intn(250)
+				fmt.Println("(backoff) Waiting: ", msToWait)
+				<-time.After(time.Duration(msToWait) * time.Millisecond)
 			}
 			// If appendEntries RPC received from new leader, convert
 			// to follower
@@ -227,6 +253,7 @@ func (rs *RaftServer) runStateMachine() {
 				entry.Command = clientIn
 				entry.Term = rs.pState.CurrentTerm
 				rs.pState.Log = append(rs.pState.Log, entry)
+				rs.saveState()
 				rs.clientOutput <- len(rs.pState.Log)
 			case <-time.After(time.Duration(15) * time.Millisecond):
 				fmt.Printf("[%s] Leader outputting heartbeat\n", rs.serverName)
@@ -298,6 +325,7 @@ func (rs *RaftServer) sendAppendEntriesRPC(s string,
 		return -1
 	} else if reply.AppendEntriesOut.Term > rs.pState.CurrentTerm {
 		rs.pState.CurrentTerm = reply.AppendEntriesOut.Term
+		rs.saveState()
 		rs.state = "follower"
 		return -2
 	} else if reply.AppendEntriesOut.Success == false {
@@ -336,6 +364,7 @@ func (rs *RaftServer) heartBeat() bool {
 				fmt.Println("AppendEntriesOut was nil")
 			} else if reply.AppendEntriesOut.Term > rs.pState.CurrentTerm {
 				rs.pState.CurrentTerm = reply.AppendEntriesOut.Term
+				rs.saveState()
 				rs.state = "follower"
 				return false
 			} // If the heartbeat failed, we can't do anything else.
@@ -375,9 +404,6 @@ func (rs *RaftServer) GetServerStatus(unused int, value *string) error {
 	return nil
 }
 
-/* Helper function used to call "append entries" on a given server ID */
-// TODO MAKE THAT FUNC
-
 func (rs *RaftServer) AppendEntries(in raftRpc.RaftClientArgs,
 	out *raftRpc.RaftClientReply) error {
 	fmt.Printf("[%s][AE]\n", rs.serverName)
@@ -399,6 +425,7 @@ func (rs *RaftServer) AppendEntries(in raftRpc.RaftClientArgs,
 		fmt.Printf("[%s][AE] Term %d is greater than current %d\n",
 			rs.serverName, in.AppendEntriesIn.Term, rs.pState.CurrentTerm)
 		rs.pState.CurrentTerm = in.AppendEntriesIn.Term
+		rs.saveState()
 		rs.state = "follower"
 		out.AppendEntriesOut.Term = rs.pState.CurrentTerm
 	}
@@ -423,8 +450,8 @@ func (rs *RaftServer) AppendEntries(in raftRpc.RaftClientArgs,
 			break
 		} else if rs.pState.Log[i].Term != in.AppendEntriesIn.Term {
 			fmt.Printf("[%s][AE] Cutting log size to: %d\n", rs.serverName, i)
-			// TODO make persistent?
 			rs.pState.Log = rs.pState.Log[:i]
+			rs.saveState()
 			break
 		}
 	}
@@ -433,6 +460,7 @@ func (rs *RaftServer) AppendEntries(in raftRpc.RaftClientArgs,
 		fmt.Printf("[%s][AE] Adding entry at index %d\n", rs.serverName, i)
 		// TODO make persistent?
 		rs.pState.Log = append(rs.pState.Log, in.AppendEntriesIn.Entries[i-startIndex])
+		rs.saveState()
 		for _, e := range rs.pState.Log {
 			fmt.Println(e.Command)
 		}
@@ -477,6 +505,7 @@ func (rs *RaftServer) RequestVote(in raftRpc.RaftClientArgs,
 		fmt.Printf("[%s][RV] This term is large!\n", rs.serverName)
 		rs.pState.CurrentTerm = in.RequestVoteIn.Term
 		rs.pState.VotedFor = ""
+		rs.saveState()
 		rs.state = "follower"
 		out.RequestVoteOut.Term = rs.pState.CurrentTerm
 	}
@@ -489,6 +518,7 @@ func (rs *RaftServer) RequestVote(in raftRpc.RaftClientArgs,
 		(len(rs.pState.Log)-1 <= in.RequestVoteIn.LastLogIndex) {
 		fmt.Printf("[%s][RV] Vote granted to %s\n", rs.serverName, in.RequestVoteIn.CandidateId)
 		rs.pState.VotedFor = in.RequestVoteIn.CandidateId
+		rs.saveState()
 		out.RequestVoteOut.VoteGranted = true
 		rs.attemptCandidate = false
 	}
