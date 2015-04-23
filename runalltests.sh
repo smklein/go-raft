@@ -4,7 +4,8 @@ cd tests
 
 tests=( "basic_leader_test.go" "basic_write_test.go" \
         "sequential_write_test.go" "concurrent_write_test.go" \
-        "basic_persistent_log_test.go" "illegal_read_log_test.go" )
+        "basic_persistent_log_test.go" "illegal_read_log_test.go" \
+        "non_majority_election_test.go" )
 
 for t in "${tests[@]}"
 do

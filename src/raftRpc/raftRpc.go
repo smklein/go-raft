@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/rpc"
-	"os"
 	"strconv"
 	"time"
 )
@@ -82,13 +81,9 @@ func DialHTTP(network, address string, in, out string) (*RaftClient, error) {
 
 		d, err = rpc.DialHTTP(network, serverAddress)
 		if err != nil {
-			fmt.Println(err)
-			// If DEBUG is on, we NEED the ability to contact the debug server.
-			os.Exit(-1)
+			panic(err)
 		}
 	}
-	// TODO Get rule is failing because parts of "RaftClient" are not
-	// initialized. Fix this tomorrow pls. BUG BUG BUG BUG
 	return &RaftClient{client: c,
 		debugClient:  d,
 		inputServer:  in,
@@ -103,8 +98,7 @@ func (rc *RaftClient) Call(serviceMethod string, args RaftClientArgs,
 		err := rc.debugClient.Call("Check.GetRule", sc, &behavior)
 		if err != nil {
 			// If DEBUG is on, we NEED the ability to contact the debug server.
-			fmt.Println(err)
-			os.Exit(-1)
+			panic(err)
 		}
 		if behavior.Drop {
 			fmt.Println("Applying DROP rule")

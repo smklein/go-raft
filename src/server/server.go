@@ -191,7 +191,7 @@ func (rs *RaftServer) runStateMachine() {
 				fmt.Printf("[%s][CANDIDATE] Requesting vote from %s\n", rs.serverName, s)
 				err := c.Call("RaftServer.RequestVote", args, &reply)
 				if err != nil {
-					fmt.Println("[%s] Candidate could not request vote", rs.serverName)
+					fmt.Printf("[%s] Candidate could not request vote\n", rs.serverName)
 				} else {
 					if reply.RequestVoteOut == nil {
 						fmt.Println("RequestVoteOut was nil")

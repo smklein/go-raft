@@ -49,6 +49,8 @@ func serverExists(name string) bool {
 }
 
 func addRuleToServer(in RuleCommandRpcInput, inServer, outServer string) {
+	fmt.Printf("[DBG SERVER] Add rule to server %s --> %s : %s\n",
+		inServer, outServer, in.Behavior)
 	sc := ServerConnection{inServer, outServer}
 	var behavior *Behavior
 	if rules[sc] != nil {
@@ -69,9 +71,11 @@ func addRuleToServer(in RuleCommandRpcInput, inServer, outServer string) {
 
 func (t *Check) AddRule(in RuleCommandRpcInput, out *bool) error {
 	if !serverExists(in.Input) {
+		*out = false
 		return errors.New("Input server not known by debug server")
 	}
 	if !serverExists(in.Output) {
+		*out = false
 		return errors.New("Output server not known by debug server")
 	}
 
@@ -82,6 +86,7 @@ func (t *Check) AddRule(in RuleCommandRpcInput, out *bool) error {
 }
 
 func (t *Check) GetRule(in ServerConnection, out *Behavior) error {
+	fmt.Println("[DBG SERVER] GET RULE CALLED")
 	if !serverExists(in.Input) {
 		return errors.New("Input server not known by debug server")
 	}
@@ -89,8 +94,12 @@ func (t *Check) GetRule(in ServerConnection, out *Behavior) error {
 		return errors.New("Output server not known by debug server")
 	}
 
-	out = rules[in]
-
+	b := rules[in]
+	if b != nil {
+		*out = *b
+	} else {
+		out = nil
+	}
 	return nil
 }
 
@@ -100,15 +109,15 @@ type ClientDebugServer struct {
 	serverNames []string
 }
 
-func CreateDebugServerConnection(addr string, serverNames []string) *ClientDebugServer {
+func CreateDebugServerConnection(addr string, serverNames []string) (*ClientDebugServer, error) {
 	dbg := &ClientDebugServer{}
 	debug, err := rpc.DialHTTP("tcp", addr)
-	dbg.dbgServer = debug
 	if err != nil {
-		return nil
+		return nil, err
 	}
+	dbg.dbgServer = debug
 	dbg.serverNames = serverNames
-	return dbg
+	return dbg, nil
 }
 
 func (dbg *ClientDebugServer) AddRule(s1, s2, action string, on bool) error {

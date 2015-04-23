@@ -43,6 +43,8 @@ func (sm *ServerManager) StartAllServers() error {
 
 func (sm *ServerManager) StartDebugServer() error {
 	sm.debugServer = exec.Command(os.Getenv("GOPATH") + "bin/debug_runner")
+	sm.debugServer.Stdout = os.Stdout
+	sm.debugServer.Stderr = os.Stderr
 	err := sm.debugServer.Start()
 	go sm.debugServer.Wait()
 	return err
