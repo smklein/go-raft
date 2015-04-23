@@ -140,7 +140,6 @@ func (rs *RaftServer) runStateMachine() {
 		// If commitIndex > lastApplied:
 		// Increment lastApplied, apply log[lastApplied] to state machine.
 		for rs.commitIndex > rs.lastApplied {
-			// TODO Make persistent
 			rs.lastApplied += 1
 			rs.pState.StateMachineLog = append(rs.pState.StateMachineLog,
 				rs.pState.Log[rs.lastApplied])
@@ -458,7 +457,6 @@ func (rs *RaftServer) AppendEntries(in raftRpc.RaftClientArgs,
 	// 4. Append any new entries not already in the log.
 	for i := startIndex; i < startIndex+len(in.AppendEntriesIn.Entries); i++ {
 		fmt.Printf("[%s][AE] Adding entry at index %d\n", rs.serverName, i)
-		// TODO make persistent?
 		rs.pState.Log = append(rs.pState.Log, in.AppendEntriesIn.Entries[i-startIndex])
 		rs.saveState()
 		for _, e := range rs.pState.Log {
@@ -523,8 +521,4 @@ func (rs *RaftServer) RequestVote(in raftRpc.RaftClientArgs,
 		rs.attemptCandidate = false
 	}
 	return nil
-}
-
-func GimmeTrue() bool {
-	return true
 }

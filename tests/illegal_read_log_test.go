@@ -3,6 +3,7 @@ package tests
 import (
 	"config"
 	"raftClient"
+	"raftPersistency"
 	"serverManagement"
 	"testing"
 	"time"
@@ -20,21 +21,29 @@ func TestIllegalReadLog(t *testing.T) {
 	}
 
 	serverNames = cfg.GetServerNames()
+	err := raftPersistency.DeleteAllLogs()
+	if err != nil {
+		t.Errorf("Could not clear log files: %s", err)
+		return
+	}
 
-	err := serverManagement.StartDebugServer()
+	sm := &serverManagement.ServerManager{}
+	defer sm.KillAllServers()
+	err = sm.StartDebugServer()
 	if err != nil {
 		t.Errorf("Failure starting debug server: %s", err)
 		return
 	}
-	sm := serverManagement.StartAllServers()
-	if sm == nil {
+	err = sm.StartAllServers()
+	if err != nil {
 		t.Errorf("Failure starting raft servers")
 		return
 	}
 	t.Logf("All servers started")
+	time.Sleep(5000 * time.Millisecond)
 
 	// Initialize client
-	client := raftClient.RaftClient{}
+	client := raftClient.CreateRaftClient(&cfg)
 
 	// Commit a single value
 	err = client.Commit(testValue)
@@ -44,11 +53,10 @@ func TestIllegalReadLog(t *testing.T) {
 	}
 	t.Logf("Value written")
 
-	// Sleep for 100 ms
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 
 	// Verify that the log has been updated
-	readValue, err := client.ReadLog(0)
+	readValue, err := client.ReadLog(1)
 	if err != nil {
 		t.Errorf("Log reading failure: %s", err)
 		return
@@ -62,7 +70,7 @@ func TestIllegalReadLog(t *testing.T) {
 
 	// Verify that the log has been properly replicated
 	for _, server := range serverNames {
-		readValue, err = client.ReadLogAtServer(0, server)
+		readValue, err = client.ReadLogAtServer(1, server)
 		if err != nil {
 			t.Errorf("Log reading failure at server <%s>: %s", server, err)
 			return
@@ -73,15 +81,12 @@ func TestIllegalReadLog(t *testing.T) {
 		}
 	}
 
-	_, err = client.ReadLog(1)
+	_, err = client.ReadLog(2)
 	if err == nil {
-		t.Errorf("Expected client to fail when reading log value 1")
-	} else if err.Error() != "Log does not contain index" {
-		// TODO Verify the error value here
+		t.Errorf("Expected client to fail when reading log value 2")
+	} else if err.Error() != "Index not applied to state machine" {
 		t.Errorf("Expected a different error value (TODO errval) ")
 	}
 
 	t.Logf("Test passed")
-
-	sm.KillAllServers()
 }

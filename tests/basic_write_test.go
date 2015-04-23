@@ -21,7 +21,6 @@ func TestBasicWrite(t *testing.T) {
 	}
 
 	serverNames = cfg.GetServerNames()
-
 	err := raftPersistency.DeleteAllLogs()
 	if err != nil {
 		t.Errorf("Could not clear log files: %s", err)

@@ -1,0 +1,5 @@
+*.a
+*.swp
+src/gopkg.in/
+bin/
+data/
